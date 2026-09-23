@@ -1,0 +1,22 @@
+using RabbitMQ.ClientKit.Connection;
+
+namespace RabbitMQ.ClientKit.Channel;
+
+/// <summary>
+/// Creates a fresh producer channel for every lease request.
+/// </summary>
+public sealed class TransientProducerChannelProvider(IRabbitMqConnectionManager connectionManager) : IRabbitMqProducerChannelProvider
+{
+    private readonly IRabbitMqConnectionManager _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
+
+    /// <inheritdoc />
+    public async ValueTask<IRabbitMqChannelLease> RentAsync(CancellationToken cancellationToken = default)
+    {
+        var channel = await _connectionManager.CreateChannelAsync(cancellationToken).ConfigureAwait(false);
+        
+        return new AsyncDisposableChannelLease(channel);
+    }
+
+    /// <inheritdoc />
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}
