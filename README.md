@@ -69,6 +69,25 @@ await using var subscription = await client.SubscribeAsync<dynamic>(
     });
 ```
 
+## Batch publishing
+
+RabbitMQ.Client v7+ no longer exposes the old bulk-publish API, so `RabbitMQ.ClientKit` batch publishing reuses a single leased channel and publishes each message individually.
+
+```csharp
+await client.PublishBatchAsync(
+    new[]
+    {
+        new { OrderId = 42, Status = "Created" },
+        new { OrderId = 43, Status = "Created" }
+    },
+    new RabbitMqPublishOptions
+    {
+        QueueName = "orders.created"
+    });
+```
+
+Batch publishing uses one shared `RabbitMqPublishOptions` instance for the batch.
+
 ## Core DI usage
 
 `RabbitMQ.ClientKit` now includes `IServiceCollection` extensions for the built-in transient channel strategy.

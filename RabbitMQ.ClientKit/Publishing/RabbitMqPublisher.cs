@@ -29,16 +29,51 @@ public sealed class RabbitMqPublisher
     /// <param name="cancellationToken">The cancellation token for the publish operation.</param>
     public async Task PublishAsync<T>(T message, RabbitMqPublishOptions options, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(options);
-        options.Validate();
+        ValidateOptions(options);
 
         await using var lease = await _producerChannelProvider.RentAsync(cancellationToken).ConfigureAwait(false);
+        await InitializeTopologyAsync(lease.Channel, options, cancellationToken).ConfigureAwait(false);
+        await PublishCoreAsync(lease.Channel, message, options, cancellationToken).ConfigureAwait(false);
+    }
 
-        if (options.Topology is not null)
+    /// <summary>
+    /// Publishes multiple payloads using the supplied options.
+    /// </summary>
+    /// <typeparam name="T">The payload type.</typeparam>
+    /// <param name="messages">The payloads to publish.</param>
+    /// <param name="options">The publish options describing routing, topology, and properties shared by the batch.</param>
+    /// <param name="cancellationToken">The cancellation token for the publish operation.</param>
+    public async Task PublishBatchAsync<T>(IEnumerable<T> messages, RabbitMqPublishOptions options, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(messages);
+        ValidateOptions(options);
+
+        using var enumerator = messages.GetEnumerator();
+        if (!enumerator.MoveNext())
         {
-            await RabbitMqTopologyInitializer.InitializeAsync(lease.Channel, options.Topology, cancellationToken).ConfigureAwait(false);
+            return;
         }
 
+        await using var lease = await _producerChannelProvider.RentAsync(cancellationToken).ConfigureAwait(false);
+        await InitializeTopologyAsync(lease.Channel, options, cancellationToken).ConfigureAwait(false);
+
+        do
+        {
+            await PublishCoreAsync(lease.Channel, enumerator.Current, options, cancellationToken).ConfigureAwait(false);
+        }
+        while (enumerator.MoveNext());
+    }
+
+    private async Task InitializeTopologyAsync(IChannel channel, RabbitMqPublishOptions options, CancellationToken cancellationToken)
+    {
+        if (options.Topology is not null)
+        {
+            await RabbitMqTopologyInitializer.InitializeAsync(channel, options.Topology, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task PublishCoreAsync<T>(IChannel channel, T message, RabbitMqPublishOptions options, CancellationToken cancellationToken)
+    {
         var body = _serializer.Serialize(message);
         var properties = options.Properties?.ToBasicProperties() ?? new BasicProperties { Persistent = true };
 
@@ -47,7 +82,7 @@ public sealed class RabbitMqPublisher
             properties.ContentType = _serializer.ContentType;
         }
 
-        await lease.Channel.BasicPublishAsync(
+        await channel.BasicPublishAsync(
                 options.ExchangeName,
                 options.ResolveRoutingKey(),
                 options.Mandatory,
@@ -55,5 +90,11 @@ public sealed class RabbitMqPublisher
                 body,
                 cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    private static void ValidateOptions(RabbitMqPublishOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        options.Validate();
     }
 }

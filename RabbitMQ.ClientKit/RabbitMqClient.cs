@@ -86,6 +86,16 @@ public sealed class RabbitMqClient : IAsyncDisposable
         Publisher.PublishAsync(message, options, cancellationToken);
 
     /// <summary>
+    /// Publishes multiple payloads using the configured publisher service.
+    /// </summary>
+    /// <typeparam name="T">The payload type.</typeparam>
+    /// <param name="messages">The payloads to publish.</param>
+    /// <param name="options">The publish options shared by the batch.</param>
+    /// <param name="cancellationToken">The cancellation token for the publish operation.</param>
+    public Task PublishBatchAsync<T>(IEnumerable<T> messages, RabbitMqPublishOptions options, CancellationToken cancellationToken = default) =>
+        Publisher.PublishBatchAsync(messages, options, cancellationToken);
+
+    /// <summary>
     /// Creates a consumer subscription using the configured consumer service.
     /// </summary>
     /// <typeparam name="T">The payload type.</typeparam>
