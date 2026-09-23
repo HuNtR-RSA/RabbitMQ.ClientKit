@@ -169,6 +169,61 @@ That registration still resolves `RabbitMqClient`, `RabbitMqPublisher`, and `Rab
 - a bounded producer-channel pool for publish-heavy workloads
 - a reusable consumer-channel store keyed by consumer name, so long-lived consumer channels can be retained and reused between subscriptions
 
+## Named DI registrations
+
+You can also register multiple RabbitMQ clients side-by-side by name with .NET 8 keyed services.
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using RabbitMQ.ClientKit;
+using RabbitMQ.ClientKit.Configuration;
+using RabbitMQ.ClientKit.ChannelPooling;
+
+var services = new ServiceCollection();
+
+services.AddNamedRabbitMqClient(
+    "orders",
+    new RabbitMqConnectionOptions
+    {
+        HostName = "orders-rabbit",
+        ClientProvidedName = "orders-api"
+    });
+
+services.AddNamedPooledRabbitMqClient(
+    "payments",
+    new RabbitMqConnectionOptions
+    {
+        HostName = "payments-rabbit",
+        ClientProvidedName = "payments-api"
+    },
+    new RabbitMqChannelPoolingOptions
+    {
+        ProducerPoolSize = 16
+    });
+```
+
+Resolve them either directly from the service provider:
+
+```csharp
+var provider = services.BuildServiceProvider();
+
+var ordersClient = provider.GetRequiredKeyedService<RabbitMqClient>("orders");
+var paymentsPublisher = provider.GetRequiredKeyedService<RabbitMqPublisher>("payments");
+var paymentsConsumer = provider.GetRequiredKeyedService<RabbitMqConsumer>("payments");
+```
+
+Or inject them into application services with keyed DI:
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using RabbitMQ.ClientKit;
+
+public sealed class BillingPublisher([FromKeyedServices("payments")] RabbitMqPublisher publisher)
+{
+    public RabbitMqPublisher Publisher { get; } = publisher;
+}
+```
+
 The pooling package uses:
 
 - a bounded producer-channel pool for publish-heavy workloads
