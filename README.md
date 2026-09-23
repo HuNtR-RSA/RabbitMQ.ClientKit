@@ -69,6 +69,60 @@ await using var subscription = await client.SubscribeAsync<dynamic>(
     });
 ```
 
+## Core DI usage
+
+`RabbitMQ.ClientKit` now includes `IServiceCollection` extensions for the built-in transient channel strategy.
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using RabbitMQ.ClientKit;
+using RabbitMQ.ClientKit.Configuration;
+
+var services = new ServiceCollection();
+
+services.AddRabbitMqClient(new RabbitMqConnectionOptions
+{
+    HostName = "localhost",
+    UserName = "guest",
+    Password = "guest",
+    ClientProvidedName = "orders-api"
+});
+```
+
+You can then inject:
+
+- `RabbitMqClient` for the convenience facade
+- `RabbitMqPublisher` if you only publish
+- `RabbitMqConsumer` if you only subscribe
+- `IRabbitMqSerializer`, `IRabbitMqConnectionManager`, and the channel-provider abstractions if you need lower-level control
+
+Example consumer-facing service:
+
+```csharp
+using RabbitMQ.ClientKit;
+using RabbitMQ.ClientKit.Configuration;
+
+public sealed class OrderPublisher(RabbitMqClient rabbitMqClient)
+{
+    public Task PublishCreatedAsync(int orderId, CancellationToken cancellationToken = default) =>
+        rabbitMqClient.PublishAsync(
+            new { OrderId = orderId, Status = "Created" },
+            new RabbitMqPublishOptions
+            {
+                QueueName = "orders.created",
+                Topology = new RabbitMqTopologyOptions
+                {
+                    Queue = new RabbitMqQueueOptions
+                    {
+                        Name = "orders.created",
+                        Durable = true
+                    }
+                }
+            },
+            cancellationToken);
+}
+```
+
 ## Pooling extension usage
 
 ```csharp
@@ -86,6 +140,34 @@ var pooledClient = PooledRabbitMqClientFactory.Create(
         ProducerPoolSize = 16
     });
 ```
+
+## Pooling DI usage
+
+`RabbitMQ.ClientKit.ChannelPooling` also includes `IServiceCollection` extensions that swap in the pooled producer and reusable consumer channel providers.
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using RabbitMQ.ClientKit.Configuration;
+using RabbitMQ.ClientKit.ChannelPooling;
+
+var services = new ServiceCollection();
+
+services.AddPooledRabbitMqClient(
+    new RabbitMqConnectionOptions
+    {
+        HostName = "localhost",
+        ClientProvidedName = "payments-api"
+    },
+    new RabbitMqChannelPoolingOptions
+    {
+        ProducerPoolSize = 16
+    });
+```
+
+That registration still resolves `RabbitMqClient`, `RabbitMqPublisher`, and `RabbitMqConsumer`, but the underlying channel strategy changes to:
+
+- a bounded producer-channel pool for publish-heavy workloads
+- a reusable consumer-channel store keyed by consumer name, so long-lived consumer channels can be retained and reused between subscriptions
 
 The pooling package uses:
 
