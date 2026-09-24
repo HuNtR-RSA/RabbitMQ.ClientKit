@@ -15,6 +15,7 @@ The current packaged release line targets **.NET 8** and uses **independent SemV
 |---|---|
 | `RabbitMQ.ClientKit` | Core connection, publishing, consuming, serialization, and transient channel creation |
 | `RabbitMQ.ClientKit.ChannelPooling` | Reusable producer and consumer channel strategies built on the core abstractions |
+| `RabbitMQ.ClientKit.DynamicConfiguration` | Optional reloadable configuration support for appsettings, databases, and other dynamic sources |
 
 ## Core usage
 
@@ -325,6 +326,88 @@ public sealed class OrderPublisherService(IRabbitMqEndpointResolver rabbitMq)
 ```
 
 `ConnectionName` is optional on producers and consumers. When omitted, the definition uses the default `Connection`; when supplied, it resolves against one of the named `Connections`.
+
+## Dynamic configuration package
+
+If you want settings to come from a database or another reloadable source instead of being fixed at startup, use the optional `RabbitMQ.ClientKit.DynamicConfiguration` package.
+
+It adds:
+
+- `IRabbitMqDynamicConfigurationSource` for loading the latest snapshot
+- `IRabbitMqDynamicEndpointResolver` for resolving the current client/producer/consumer
+- `RabbitMqDynamicProducer` and `RabbitMqDynamicConsumer` handles that read the latest configuration on each use
+
+Example registration with a custom source:
+
+```csharp
+using RabbitMQ.ClientKit.DynamicConfiguration;
+
+builder.Services.AddSingleton<IRabbitMqDynamicConfigurationSource, DatabaseRabbitMqConfigurationSource>();
+builder.Services.AddDynamicRabbitMqClientKit<DatabaseRabbitMqConfigurationSource>();
+```
+
+Or from a reloadable configuration section:
+
+```csharp
+using RabbitMQ.ClientKit.DynamicConfiguration;
+
+builder.Services.AddDynamicRabbitMqClientKit(builder.Configuration.GetSection("RabbitMq"));
+```
+
+Example source shape:
+
+```csharp
+using RabbitMQ.ClientKit.Configuration;
+using RabbitMQ.ClientKit.DynamicConfiguration;
+
+public sealed class DatabaseRabbitMqConfigurationSource : IRabbitMqDynamicConfigurationSource
+{
+    public ValueTask<RabbitMqDynamicConfigurationSnapshot> GetConfigurationAsync(CancellationToken cancellationToken = default)
+    {
+        var defaultConnection = new RabbitMqConnectionOptions
+        {
+            HostName = "rabbit-a",
+            ClientProvidedName = "orders-api"
+        };
+
+        var producers = new Dictionary<string, RabbitMqProducerRegistration>
+        {
+            ["orders-created"] = new(
+                "orders-created",
+                null,
+                new RabbitMqPublishOptions
+                {
+                    QueueName = "orders.created"
+                })
+        };
+
+        return ValueTask.FromResult(new RabbitMqDynamicConfigurationSnapshot(defaultConnection, producers: producers));
+    }
+}
+```
+
+Using the dynamic resolver:
+
+```csharp
+using RabbitMQ.ClientKit.DynamicConfiguration;
+
+public sealed class OrderPublisherService(IRabbitMqDynamicEndpointResolver rabbitMq)
+{
+    public async Task PublishCreatedAsync(object message, CancellationToken cancellationToken = default)
+    {
+        var producer = rabbitMq.GetProducer("orders-created");
+        await producer.PublishAsync(message, cancellationToken);
+    }
+}
+```
+
+Refreshing configuration:
+
+```csharp
+await rabbitMq.RefreshAsync(cancellationToken);
+```
+
+Future producer calls will use the latest loaded options and connection mapping. Existing active consumer subscriptions are not hot-swapped automatically; refresh affects future `SubscribeAsync(...)` calls.
 
 The pooling package uses:
 

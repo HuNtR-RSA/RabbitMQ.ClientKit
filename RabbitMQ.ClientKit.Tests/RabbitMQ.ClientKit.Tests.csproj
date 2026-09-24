@@ -24,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\RabbitMQ.ClientKit\RabbitMQ.ClientKit.csproj" />
     <ProjectReference Include="..\RabbitMQ.ClientKit.ChannelPooling\RabbitMQ.ClientKit.ChannelPooling.csproj" />
+    <ProjectReference Include="..\RabbitMQ.ClientKit.DynamicConfiguration\RabbitMQ.ClientKit.DynamicConfiguration.csproj" />
   </ItemGroup>
 
 </Project>

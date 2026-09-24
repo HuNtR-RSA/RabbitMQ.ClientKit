@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RabbitMQ.ClientKit.ChannelP
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RabbitMQ.ClientKit.Tests", "RabbitMQ.ClientKit.Tests\RabbitMQ.ClientKit.Tests.csproj", "{0D46553F-8477-4F71-87F8-E34F52EE2B07}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RabbitMQ.ClientKit.DynamicConfiguration", "RabbitMQ.ClientKit.DynamicConfiguration\RabbitMQ.ClientKit.DynamicConfiguration.csproj", "{390B858D-0502-4E7F-AABC-13D7C0791B6A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{0D46553F-8477-4F71-87F8-E34F52EE2B07}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0D46553F-8477-4F71-87F8-E34F52EE2B07}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0D46553F-8477-4F71-87F8-E34F52EE2B07}.Release|Any CPU.Build.0 = Release|Any CPU
+		{390B858D-0502-4E7F-AABC-13D7C0791B6A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{390B858D-0502-4E7F-AABC-13D7C0791B6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{390B858D-0502-4E7F-AABC-13D7C0791B6A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{390B858D-0502-4E7F-AABC-13D7C0791B6A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
