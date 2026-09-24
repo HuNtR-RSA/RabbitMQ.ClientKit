@@ -251,13 +251,13 @@ You can also register a default connection, named connections, and arrays of nam
 ```json
 {
   "RabbitMq": {
-    "Connection": {
+    "DefaultConnection": {
       "HostName": "default-rabbit",
       "UserName": "guest",
       "Password": "guest",
       "ClientProvidedName": "default-api"
     },
-    "Connections": [
+    "NamedConnections": [
       {
         "Name": "billing",
         "HostName": "billing-rabbit",
@@ -325,7 +325,7 @@ public sealed class OrderPublisherService(IRabbitMqEndpointResolver rabbitMq)
 }
 ```
 
-`ConnectionName` is optional on producers and consumers. When omitted, the definition uses the default `Connection`; when supplied, it resolves against one of the named `Connections`.
+`ConnectionName` is optional on producers and consumers. When omitted, the definition uses `DefaultConnection`; when supplied, it resolves against one of the `NamedConnections`.
 
 ## Dynamic configuration package
 

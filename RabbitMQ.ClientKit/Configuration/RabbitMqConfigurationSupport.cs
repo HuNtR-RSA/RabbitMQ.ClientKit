@@ -78,9 +78,9 @@ internal sealed class RabbitMqEndpointResolver(
 
 internal sealed class RabbitMqClientKitConfiguration
 {
-    public RabbitMqConnectionConfiguration? Connection { get; set; }
+    public RabbitMqConnectionConfiguration? DefaultConnection { get; set; }
 
-    public List<RabbitMqNamedConnectionConfiguration> Connections { get; set; } = [];
+    public List<RabbitMqNamedConnectionConfiguration> NamedConnections { get; set; } = [];
 
     public List<RabbitMqProducerConfiguration> Producers { get; set; } = [];
 

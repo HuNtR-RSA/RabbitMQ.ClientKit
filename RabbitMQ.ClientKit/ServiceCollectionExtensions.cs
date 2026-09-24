@@ -160,15 +160,17 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configurationSection);
 
         var configuration = configurationSection.Get<RabbitMqClientKitConfiguration>() ?? new RabbitMqClientKitConfiguration();
-        var hasDefaultConnection = configuration.Connection is not null;
+        var defaultConnection = configuration.DefaultConnection;
+        var namedConnections = configuration.NamedConnections;
+        var hasDefaultConnection = defaultConnection is not null;
 
-        if (configuration.Connection is not null)
+        if (defaultConnection is not null)
         {
-            services.AddRabbitMqClient(configuration.Connection.ToOptions());
+            services.AddRabbitMqClient(defaultConnection.ToOptions());
         }
 
         var knownConnections = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var namedConnection in configuration.Connections)
+        foreach (var namedConnection in namedConnections)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(namedConnection.Name);
 

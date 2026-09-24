@@ -272,12 +272,12 @@ internal sealed class ConfigurationSectionRabbitMqDynamicConfigurationSource(ICo
     public ValueTask<RabbitMqDynamicConfigurationSnapshot> GetConfigurationAsync(CancellationToken cancellationToken = default)
     {
         var configuration = _configurationSection.Get<RabbitMqDynamicConfigurationModel>() ?? new RabbitMqDynamicConfigurationModel();
-        var defaultConnection = configuration.Connection?.ToOptions();
+        var defaultConnection = configuration.DefaultConnection?.ToOptions();
         var namedConnections = new Dictionary<string, RabbitMqConnectionOptions>(StringComparer.OrdinalIgnoreCase);
         var producers = new Dictionary<string, RabbitMqProducerRegistration>(StringComparer.OrdinalIgnoreCase);
         var consumers = new Dictionary<string, RabbitMqConsumerRegistration>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var connection in configuration.Connections)
+        foreach (var connection in configuration.NamedConnections)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(connection.Name);
 
@@ -315,9 +315,9 @@ internal sealed class ConfigurationSectionRabbitMqDynamicConfigurationSource(ICo
 
 internal sealed class RabbitMqDynamicConfigurationModel
 {
-    public RabbitMqConnectionModel? Connection { get; set; }
+    public RabbitMqConnectionModel? DefaultConnection { get; set; }
 
-    public List<RabbitMqNamedConnectionModel> Connections { get; set; } = [];
+    public List<RabbitMqNamedConnectionModel> NamedConnections { get; set; } = [];
 
     public List<RabbitMqProducerModel> Producers { get; set; } = [];
 

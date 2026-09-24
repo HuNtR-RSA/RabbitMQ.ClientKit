@@ -185,11 +185,11 @@ public sealed class ServiceCollectionExtensionsTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["RabbitMq:Connection:HostName"] = "default-rabbit",
-                ["RabbitMq:Connection:ClientProvidedName"] = "default-api",
-                ["RabbitMq:Connections:0:Name"] = "billing",
-                ["RabbitMq:Connections:0:HostName"] = "billing-rabbit",
-                ["RabbitMq:Connections:0:ClientProvidedName"] = "billing-api",
+                ["RabbitMq:DefaultConnection:HostName"] = "default-rabbit",
+                ["RabbitMq:DefaultConnection:ClientProvidedName"] = "default-api",
+                ["RabbitMq:NamedConnections:0:Name"] = "billing",
+                ["RabbitMq:NamedConnections:0:HostName"] = "billing-rabbit",
+                ["RabbitMq:NamedConnections:0:ClientProvidedName"] = "billing-api",
                 ["RabbitMq:Producers:0:Name"] = "orders-created",
                 ["RabbitMq:Producers:0:Publish:QueueName"] = "orders.created",
                 ["RabbitMq:Producers:1:Name"] = "billing-charged",
@@ -237,7 +237,7 @@ public sealed class ServiceCollectionExtensionsTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["RabbitMq:Connection:HostName"] = "default-rabbit",
+                ["RabbitMq:DefaultConnection:HostName"] = "default-rabbit",
                 ["RabbitMq:Producers:0:Name"] = "orders-created",
                 ["RabbitMq:Producers:0:ConnectionName"] = "missing",
                 ["RabbitMq:Producers:0:Publish:QueueName"] = "orders.created"
@@ -251,4 +251,5 @@ public sealed class ServiceCollectionExtensionsTests
 
         Assert.Contains("missing", exception.Message);
     }
+
 }
