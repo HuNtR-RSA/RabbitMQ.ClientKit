@@ -243,6 +243,89 @@ public sealed class BillingPublisher([FromKeyedServices("payments")] RabbitMqPub
 }
 ```
 
+## appsettings.json registration
+
+You can also register a default connection, named connections, and arrays of named producer/consumer definitions from configuration.
+
+```json
+{
+  "RabbitMq": {
+    "Connection": {
+      "HostName": "default-rabbit",
+      "UserName": "guest",
+      "Password": "guest",
+      "ClientProvidedName": "default-api"
+    },
+    "Connections": [
+      {
+        "Name": "billing",
+        "HostName": "billing-rabbit",
+        "UserName": "guest",
+        "Password": "guest",
+        "ClientProvidedName": "billing-api"
+      }
+    ],
+    "Producers": [
+      {
+        "Name": "orders-created",
+        "Publish": {
+          "QueueName": "orders.created"
+        }
+      },
+      {
+        "Name": "billing-charged",
+        "ConnectionName": "billing",
+        "Publish": {
+          "ExchangeName": "billing",
+          "RoutingKey": "charged"
+        }
+      }
+    ],
+    "Consumers": [
+      {
+        "Name": "orders-worker",
+        "Consume": {
+          "QueueName": "orders.created"
+        }
+      },
+      {
+        "Name": "billing-worker",
+        "ConnectionName": "billing",
+        "Consume": {
+          "QueueName": "billing.charged",
+          "ConsumerName": "billing-worker-channel"
+        }
+      }
+    ]
+  }
+}
+```
+
+Register that section like this:
+
+```csharp
+using RabbitMQ.ClientKit;
+
+builder.Services.AddRabbitMqClientKit(builder.Configuration.GetSection("RabbitMq"));
+```
+
+Then resolve configured endpoints through `IRabbitMqEndpointResolver`:
+
+```csharp
+using RabbitMQ.ClientKit;
+
+public sealed class OrderPublisherService(IRabbitMqEndpointResolver rabbitMq)
+{
+    public Task PublishCreatedAsync(object message, CancellationToken cancellationToken = default)
+    {
+        var producer = rabbitMq.GetRequiredProducer("orders-created");
+        return producer.Publisher.PublishAsync(message, producer.Options, cancellationToken);
+    }
+}
+```
+
+`ConnectionName` is optional on producers and consumers. When omitted, the definition uses the default `Connection`; when supplied, it resolves against one of the named `Connections`.
+
 The pooling package uses:
 
 - a bounded producer-channel pool for publish-heavy workloads

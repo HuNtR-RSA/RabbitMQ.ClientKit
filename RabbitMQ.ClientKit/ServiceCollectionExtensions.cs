@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using RabbitMQ.ClientKit.Channel;
@@ -143,5 +144,122 @@ public static class ServiceCollectionExtensions
         );
 
         return services;
+    }
+
+    /// <summary>
+    /// Adds RabbitMQ clients and configured producer/consumer definitions from an application configuration section.
+    /// </summary>
+    /// <param name="services">The service collection to configure.</param>
+    /// <param name="configurationSection">The configuration section containing RabbitMQ settings.</param>
+    /// <returns>The same service collection for chaining.</returns>
+    public static IServiceCollection AddRabbitMqClientKit(
+        this IServiceCollection services,
+        IConfigurationSection configurationSection)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configurationSection);
+
+        var configuration = configurationSection.Get<RabbitMqClientKitConfiguration>() ?? new RabbitMqClientKitConfiguration();
+        var hasDefaultConnection = configuration.Connection is not null;
+
+        if (configuration.Connection is not null)
+        {
+            services.AddRabbitMqClient(configuration.Connection.ToOptions());
+        }
+
+        var knownConnections = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var namedConnection in configuration.Connections)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(namedConnection.Name);
+
+            if (!knownConnections.Add(namedConnection.Name))
+            {
+                throw new InvalidOperationException($"The RabbitMQ connection '{namedConnection.Name}' is configured more than once.");
+            }
+
+            services.AddNamedRabbitMqClient(namedConnection.Name, namedConnection.ToOptions());
+        }
+
+        var producers = CreateProducerRegistrations(configuration.Producers, knownConnections, hasDefaultConnection);
+        var consumers = CreateConsumerRegistrations(configuration.Consumers, knownConnections, hasDefaultConnection);
+
+        services.TryAddSingleton<IRabbitMqConfigurationRegistry>(_ => new RabbitMqConfigurationRegistry(producers, consumers));
+        services.TryAddSingleton<IRabbitMqEndpointResolver, RabbitMqEndpointResolver>();
+
+        return services;
+    }
+
+    private static IReadOnlyDictionary<string, RabbitMqProducerRegistration> CreateProducerRegistrations(
+        IEnumerable<RabbitMqProducerConfiguration> configurations,
+        ISet<string> knownConnections,
+        bool hasDefaultConnection)
+    {
+        var producers = new Dictionary<string, RabbitMqProducerRegistration>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var configuration in configurations)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(configuration.Name);
+            ValidateConnectionReference(configuration.ConnectionName, knownConnections, hasDefaultConnection, $"producer '{configuration.Name}'");
+
+            var registration = new RabbitMqProducerRegistration(
+                configuration.Name,
+                configuration.ConnectionName,
+                configuration.Publish.ToOptions());
+
+            if (!producers.TryAdd(registration.Name, registration))
+            {
+                throw new InvalidOperationException($"The RabbitMQ producer '{registration.Name}' is configured more than once.");
+            }
+        }
+
+        return producers;
+    }
+
+    private static IReadOnlyDictionary<string, RabbitMqConsumerRegistration> CreateConsumerRegistrations(
+        IEnumerable<RabbitMqConsumerConfiguration> configurations,
+        ISet<string> knownConnections,
+        bool hasDefaultConnection)
+    {
+        var consumers = new Dictionary<string, RabbitMqConsumerRegistration>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var configuration in configurations)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(configuration.Name);
+            ValidateConnectionReference(configuration.ConnectionName, knownConnections, hasDefaultConnection, $"consumer '{configuration.Name}'");
+
+            var registration = new RabbitMqConsumerRegistration(
+                configuration.Name,
+                configuration.ConnectionName,
+                configuration.Consume.ToOptions());
+
+            if (!consumers.TryAdd(registration.Name, registration))
+            {
+                throw new InvalidOperationException($"The RabbitMQ consumer '{registration.Name}' is configured more than once.");
+            }
+        }
+
+        return consumers;
+    }
+
+    private static void ValidateConnectionReference(
+        string? connectionName,
+        ISet<string> knownConnections,
+        bool hasDefaultConnection,
+        string ownerDescription)
+    {
+        if (string.IsNullOrWhiteSpace(connectionName))
+        {
+            if (!hasDefaultConnection)
+            {
+                throw new InvalidOperationException($"The configured {ownerDescription} references the default RabbitMQ connection, but no default connection is configured.");
+            }
+
+            return;
+        }
+
+        if (!knownConnections.Contains(connectionName))
+        {
+            throw new InvalidOperationException($"The configured {ownerDescription} references unknown RabbitMQ connection '{connectionName}'.");
+        }
     }
 }

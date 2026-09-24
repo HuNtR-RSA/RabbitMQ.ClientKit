@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.ClientKit.Channel;
 using RabbitMQ.ClientKit.ChannelPooling;
@@ -176,5 +177,78 @@ public sealed class ServiceCollectionExtensionsTests
         Assert.Equal("billing-rabbit", billingOptions.HostName);
         Assert.NotSame(ordersOptions, billingOptions);
         Assert.NotSame(ordersClient, billingClient);
+    }
+
+    [Fact]
+    public async Task AddRabbitMqClientKit_BindsConnectionsAndConfiguredEndpoints()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["RabbitMq:Connection:HostName"] = "default-rabbit",
+                ["RabbitMq:Connection:ClientProvidedName"] = "default-api",
+                ["RabbitMq:Connections:0:Name"] = "billing",
+                ["RabbitMq:Connections:0:HostName"] = "billing-rabbit",
+                ["RabbitMq:Connections:0:ClientProvidedName"] = "billing-api",
+                ["RabbitMq:Producers:0:Name"] = "orders-created",
+                ["RabbitMq:Producers:0:Publish:QueueName"] = "orders.created",
+                ["RabbitMq:Producers:1:Name"] = "billing-charged",
+                ["RabbitMq:Producers:1:ConnectionName"] = "billing",
+                ["RabbitMq:Producers:1:Publish:ExchangeName"] = "billing",
+                ["RabbitMq:Producers:1:Publish:RoutingKey"] = "charged",
+                ["RabbitMq:Consumers:0:Name"] = "orders-worker",
+                ["RabbitMq:Consumers:0:Consume:QueueName"] = "orders.created",
+                ["RabbitMq:Consumers:1:Name"] = "billing-worker",
+                ["RabbitMq:Consumers:1:ConnectionName"] = "billing",
+                ["RabbitMq:Consumers:1:Consume:QueueName"] = "billing.charged",
+                ["RabbitMq:Consumers:1:Consume:ConsumerName"] = "billing-worker-channel"
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddRabbitMqClientKit(configuration.GetSection("RabbitMq"));
+
+        await using var provider = services.BuildServiceProvider();
+
+        var registry = provider.GetRequiredService<IRabbitMqConfigurationRegistry>();
+        var resolver = provider.GetRequiredService<IRabbitMqEndpointResolver>();
+        var defaultClient = provider.GetRequiredService<RabbitMqClient>();
+        var billingClient = provider.GetRequiredKeyedService<RabbitMqClient>("billing");
+
+        var defaultProducer = resolver.GetRequiredProducer("orders-created");
+        var billingProducer = resolver.GetRequiredProducer("billing-charged");
+        var defaultConsumer = resolver.GetRequiredConsumer("orders-worker");
+        var billingConsumer = resolver.GetRequiredConsumer("billing-worker");
+
+        Assert.Equal("orders.created", registry.GetRequiredProducer("orders-created").Options.QueueName);
+        Assert.Equal("billing", registry.GetRequiredProducer("billing-charged").ConnectionName);
+        Assert.Equal("billing-worker-channel", registry.GetRequiredConsumer("billing-worker").Options.ConsumerName);
+        Assert.Same(defaultClient, defaultProducer.Client);
+        Assert.Same(billingClient, billingProducer.Client);
+        Assert.Same(provider.GetRequiredService<RabbitMqPublisher>(), defaultProducer.Publisher);
+        Assert.Same(provider.GetRequiredKeyedService<RabbitMqPublisher>("billing"), billingProducer.Publisher);
+        Assert.Same(provider.GetRequiredService<RabbitMqConsumer>(), defaultConsumer.Consumer);
+        Assert.Same(provider.GetRequiredKeyedService<RabbitMqConsumer>("billing"), billingConsumer.Consumer);
+    }
+
+    [Fact]
+    public void AddRabbitMqClientKit_RejectsUnknownConnectionReferences()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["RabbitMq:Connection:HostName"] = "default-rabbit",
+                ["RabbitMq:Producers:0:Name"] = "orders-created",
+                ["RabbitMq:Producers:0:ConnectionName"] = "missing",
+                ["RabbitMq:Producers:0:Publish:QueueName"] = "orders.created"
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            services.AddRabbitMqClientKit(configuration.GetSection("RabbitMq")));
+
+        Assert.Contains("missing", exception.Message);
     }
 }
