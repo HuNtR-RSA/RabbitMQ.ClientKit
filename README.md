@@ -434,4 +434,27 @@ docker run --rm -d --name rabbitmq-test -p 5672:5672 -p 15672:15672 rabbitmq:man
 
 Once that is available, integration tests should verify publish/consume round trips, topology declaration, ack/reject/requeue flows, and pooled channel behavior against the real broker.
 
+The test project now includes container-backed coverage for those scenarios:
+
+- integration tests are marked with `Trait("Category", "Integration")` and auto-skip when neither Docker nor Podman is available
+- load tests are marked with `Trait("Category", "Load")` and auto-skip when neither Docker nor Podman is available
+- the load suite defaults to `1000` messages and a `60` second completion window, configurable via `RABBITMQ_CLIENTKIT_LOAD_MESSAGE_COUNT` and `RABBITMQ_CLIENTKIT_LOAD_TIMEOUT_SECONDS`
+
+Examples:
+
+```bash
+dotnet test --filter "Category=Integration"
+dotnet test --filter "Category=Load"
+```
+
+## Performance snapshot
+
+Current local baseline for the pooled publish/consume load test:
+
+| Scenario | Result | Notes |
+|---|---|---|
+| `RabbitMqLoadTests.PooledClient_PublishesAndConsumesConfiguredBurst` with `RABBITMQ_CLIENTKIT_LOAD_MESSAGE_COUNT=50000` | `15.521s` end-to-end, about `3,221 msg/s` | Windows 11, Ryzen 7 5800X, 32 GB RAM, Docker 29.8.1, `rabbitmq:3.13-management`, `dotnet test --no-build --filter "Category=Load"` |
+
+Treat this as a reproducible local baseline rather than a formal benchmark: the number includes test-host overhead and disposable container startup, so absolute throughput will vary by machine and runtime configuration.
+
 Maintained by Colin Campbell.
