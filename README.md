@@ -470,4 +470,8 @@ In this run, pooled throughput was about **`1.50x` faster for publish throughput
 
 Treat this as a reproducible local baseline rather than a formal benchmark: the numbers still include test-host and broker-container overhead, so absolute throughput will vary by machine and runtime configuration.
 
+## License
+
+Licensed under the Apache License, Version 2.0. See `LICENSE` for details.
+
 Maintained by Colin Campbell.

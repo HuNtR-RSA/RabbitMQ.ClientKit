@@ -7,7 +7,6 @@
     <AssemblyName>RabbitMQ.ClientKit.DynamicConfiguration</AssemblyName>
     <RootNamespace>RabbitMQ.ClientKit.DynamicConfiguration</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>RabbitMQ.ClientKit.DynamicConfiguration</PackageId>
     <Version>1.0.0</Version>
     <PackageVersion>1.0.0</PackageVersion>
@@ -17,6 +16,7 @@
     <RepositoryType>git</RepositoryType>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <Description>Optional dynamic and reloadable RabbitMQ configuration support for RabbitMQ.ClientKit.</Description>
     <PackageTags>rabbitmq;amqp;messaging;dynamic;configuration;client;toolkit</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
