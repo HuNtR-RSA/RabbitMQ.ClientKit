@@ -439,6 +439,8 @@ The test project now includes container-backed coverage for those scenarios:
 - integration tests are marked with `Trait("Category", "Integration")` and auto-skip when neither Docker nor Podman is available
 - load tests are marked with `Trait("Category", "Load")` and auto-skip when neither Docker nor Podman is available
 - the load suite defaults to `1000` messages and a `60` second completion window, configurable via `RABBITMQ_CLIENTKIT_LOAD_MESSAGE_COUNT` and `RABBITMQ_CLIENTKIT_LOAD_TIMEOUT_SECONDS`
+- the load suite now covers both the default transient channel strategy and the pooled channel strategy with matched publish/consume scenarios
+- `RabbitMqLoadTests.TransientAndPooledClients_ReportComparativeMetrics` runs both strategies back-to-back and writes comparable publish and end-to-end throughput ratios to the xUnit test output
 
 Examples:
 
@@ -447,14 +449,25 @@ dotnet test --filter "Category=Integration"
 dotnet test --filter "Category=Load"
 ```
 
+The load scenarios are:
+
+| Test | Strategy | Output |
+|---|---|---|
+| `RabbitMqLoadTests.TransientClient_PublishesAndConsumesConfiguredBurst` | Core `AddRabbitMqClient(...)` transient producer/consumer channels | Publish duration and end-to-end throughput |
+| `RabbitMqLoadTests.PooledClient_PublishesAndConsumesConfiguredBurst` | `AddPooledRabbitMqClient(...)` pooled producer/reusable consumer channels | Publish duration and end-to-end throughput |
+| `RabbitMqLoadTests.TransientAndPooledClients_ReportComparativeMetrics` | Runs both strategies under the same settings | Per-scenario metrics plus pooled/transient throughput ratios |
+
 ## Performance snapshot
 
-Current local baseline for the pooled publish/consume load test:
+Current local baseline from `RabbitMqLoadTests.TransientAndPooledClients_ReportComparativeMetrics` with `RABBITMQ_CLIENTKIT_LOAD_MESSAGE_COUNT=50000`:
 
-| Scenario | Result | Notes |
-|---|---|---|
-| `RabbitMqLoadTests.PooledClient_PublishesAndConsumesConfiguredBurst` with `RABBITMQ_CLIENTKIT_LOAD_MESSAGE_COUNT=50000` | `15.521s` end-to-end, about `3,221 msg/s` | Windows 11, Ryzen 7 5800X, 32 GB RAM, Docker 29.8.1, `rabbitmq:3.13-management`, `dotnet test --no-build --filter "Category=Load"` |
+| Strategy | Publish duration | Publish throughput | End-to-end duration | End-to-end throughput | Notes |
+|---|---|---:|---|---:|---|
+| Transient/default | `1.385s` | `36,111 msg/s` | `3.226s` | `15,497 msg/s` | Windows 11, Ryzen 7 5800X, 32 GB RAM, Docker 29.8.1, `rabbitmq:3.13-management`, `dotnet test --no-build --filter "FullyQualifiedName~RabbitMqLoadTests.TransientAndPooledClients_ReportComparativeMetrics" --logger "console;verbosity=detailed"` |
+| Pooled | `0.925s` | `54,063 msg/s` | `2.963s` | `16,873 msg/s` | Same host and broker settings as transient/default |
 
-Treat this as a reproducible local baseline rather than a formal benchmark: the number includes test-host overhead and disposable container startup, so absolute throughput will vary by machine and runtime configuration.
+In this run, pooled throughput was about **`1.50x` faster for publish throughput** and **`1.09x` faster end-to-end** than the transient/default strategy.
+
+Treat this as a reproducible local baseline rather than a formal benchmark: the numbers still include test-host and broker-container overhead, so absolute throughput will vary by machine and runtime configuration.
 
 Maintained by Colin Campbell.
