@@ -8,8 +8,8 @@
     <RootNamespace>RabbitMQ.ClientKit.DynamicConfiguration</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>RabbitMQ.ClientKit.DynamicConfiguration</PackageId>
-    <Version>1.0.0</Version>
-    <PackageVersion>1.0.0</PackageVersion>
+    <Version>1.0.1</Version>
+    <PackageVersion>1.0.1</PackageVersion>
     <Authors>Colin Campbell</Authors>
     <PackageProjectUrl>https://github.com/HuNtR-RSA/RabbitMQ.ClientKit</PackageProjectUrl>
     <RepositoryUrl>https://github.com/HuNtR-RSA/RabbitMQ.ClientKit</RepositoryUrl>
@@ -20,7 +20,7 @@
     <Description>Optional dynamic and reloadable RabbitMQ configuration support for RabbitMQ.ClientKit.</Description>
     <PackageTags>rabbitmq;amqp;messaging;dynamic;configuration;client;toolkit</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>Initial optional dynamic-configuration package for RabbitMQ.ClientKit.</PackageReleaseNotes>
+    <PackageReleaseNotes>Documentation refresh aligned with dynamic configuration and extensibility guidance.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

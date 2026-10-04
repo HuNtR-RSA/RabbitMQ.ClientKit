@@ -8,8 +8,8 @@
     <RootNamespace>RabbitMQ.ClientKit.ChannelPooling</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>RabbitMQ.ClientKit.ChannelPooling</PackageId>
-    <Version>1.0.0</Version>
-    <PackageVersion>1.0.0</PackageVersion>
+    <Version>1.0.1</Version>
+    <PackageVersion>1.0.1</PackageVersion>
     <Authors>Colin Campbell</Authors>
     <PackageProjectUrl>https://github.com/HuNtR-RSA/RabbitMQ.ClientKit</PackageProjectUrl>
     <RepositoryUrl>https://github.com/HuNtR-RSA/RabbitMQ.ClientKit</RepositoryUrl>
@@ -20,7 +20,7 @@
     <Description>Channel pooling and consumer channel reuse extensions for RabbitMQ.ClientKit.</Description>
     <PackageTags>rabbitmq;amqp;messaging;pooling;client;toolkit</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>Initial independent-versioned release of the RabbitMQ.ClientKit.ChannelPooling package for .NET 8.</PackageReleaseNotes>
+    <PackageReleaseNotes>Documentation refresh aligned with the core package and pooled usage guidance.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

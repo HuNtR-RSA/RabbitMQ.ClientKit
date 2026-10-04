@@ -8,8 +8,8 @@
     <RootNamespace>RabbitMQ.ClientKit</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>RabbitMQ.ClientKit</PackageId>
-    <Version>1.0.0</Version>
-    <PackageVersion>1.0.0</PackageVersion>
+    <Version>1.0.1</Version>
+    <PackageVersion>1.0.1</PackageVersion>
     <Authors>Colin Campbell</Authors>
     <PackageProjectUrl>https://github.com/HuNtR-RSA/RabbitMQ.ClientKit</PackageProjectUrl>
     <RepositoryUrl>https://github.com/HuNtR-RSA/RabbitMQ.ClientKit</RepositoryUrl>
@@ -20,7 +20,7 @@
     <Description>RabbitMQ client toolkit for typed publishing, consuming, serialization, and pluggable channel management.</Description>
     <PackageTags>rabbitmq;amqp;messaging;client;toolkit</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>Initial independent-versioned release of the RabbitMQ.ClientKit core package for .NET 8.</PackageReleaseNotes>
+    <PackageReleaseNotes>Documentation refresh covering advanced topology, consumer behavior, message metadata, connection tuning, and extensibility.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
