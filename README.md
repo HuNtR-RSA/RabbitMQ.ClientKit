@@ -89,6 +89,183 @@ await client.PublishBatchAsync(
 
 Batch publishing uses one shared `RabbitMqPublishOptions` instance for the batch.
 
+## Advanced topology
+
+Topology declarations are optional, but when you supply them the toolkit will declare the configured exchange, queue, and bindings before publishing or consuming.
+
+That makes the topology model the place to express broker-native queue and binding features such as:
+
+- durable vs transient exchanges and queues
+- auto-delete and exclusive queues
+- queue bindings with explicit routing keys
+- queue arguments such as TTL, max length, quorum queue settings, and dead-letter routing
+
+Dead-letter queues are configured through normal RabbitMQ queue arguments rather than a special wrapper-specific API. For example:
+
+```csharp
+var topology = new RabbitMqTopologyOptions
+{
+    Exchange = new RabbitMqExchangeOptions
+    {
+        Name = "orders",
+        Type = "direct",
+        Durable = true
+    },
+    Queue = new RabbitMqQueueOptions
+    {
+        Name = "orders.primary",
+        Durable = true,
+        Arguments = new Dictionary<string, object?>
+        {
+            ["x-dead-letter-exchange"] = "orders.dlx",
+            ["x-dead-letter-routing-key"] = "orders.dead",
+            ["x-message-ttl"] = 30_000
+        }
+    },
+    Bindings =
+    [
+        new RabbitMqQueueBindingOptions
+        {
+            ExchangeName = "orders",
+            QueueName = "orders.primary",
+            RoutingKey = "orders.created"
+        }
+    ]
+};
+```
+
+Once a queue is configured with dead-lettering, returning `RabbitMqConsumeResult.Reject` or disabling requeue-on-failure will let RabbitMQ route the message to the broker-configured DLX/DLQ.
+
+## Consumer behavior
+
+`RabbitMqConsumerOptions` gives you the common RabbitMQ consumption controls without forcing you down a single acknowledgment model.
+
+| Option | Purpose |
+|---|---|
+| `QueueName` | The queue to consume from |
+| `ConsumerName` | Stable logical consumer identity used by reusable consumer channel providers |
+| `ConsumerTag` | Explicit RabbitMQ consumer tag |
+| `AutoAck` | Let RabbitMQ acknowledge deliveries automatically |
+| `PrefetchCount` / `GlobalPrefetch` | Control QoS and delivery batching on the channel |
+| `Exclusive` | Request an exclusive consumer |
+| `NoLocal` | Ask the broker not to deliver publications from the same connection |
+| `RequeueOnFailure` | On unhandled exceptions, choose whether the toolkit nacks with requeue or without requeue |
+| `Arguments` | Pass broker-specific consumer arguments |
+| `Topology` | Declare the required exchange/queue/bindings before consuming |
+
+The handler result controls normal acknowledgment flow:
+
+- `RabbitMqConsumeResult.Ack` acknowledges the delivery
+- `RabbitMqConsumeResult.Reject` rejects it without requeue
+- `RabbitMqConsumeResult.Requeue` nacks it and requeues it
+
+Unhandled exceptions are also surfaced to the caller. When `AutoAck` is `false`, the toolkit will `BasicNack` using `RequeueOnFailure`.
+
+Example with explicit prefetch and dead-letter-friendly failure behavior:
+
+```csharp
+await using var subscription = await client.SubscribeAsync<OrderCreated>(
+    new RabbitMqConsumerOptions
+    {
+        QueueName = "orders.primary",
+        ConsumerName = "orders-worker",
+        PrefetchCount = 32,
+        RequeueOnFailure = false,
+        Topology = topology
+    },
+    async (message, cancellationToken) =>
+    {
+        if (!await TryProcessAsync(message.Payload, cancellationToken))
+        {
+            return RabbitMqConsumeResult.Reject;
+        }
+
+        return RabbitMqConsumeResult.Ack;
+    });
+```
+
+## Message properties and message context
+
+Publishing supports the most commonly used AMQP properties through `RabbitMqMessageProperties`, including:
+
+- `Headers`
+- `CorrelationId`
+- `MessageId`
+- `ReplyTo`
+- `Expiration`
+- `Priority`
+- `Type`
+- `UserId`
+- `AppId`
+- `TimestampUtc`
+- `ContentType` / `ContentEncoding`
+- `Persistent`
+
+Example:
+
+```csharp
+await client.PublishAsync(
+    new { OrderId = 42, Status = "Created" },
+    new RabbitMqPublishOptions
+    {
+        ExchangeName = "orders",
+        RoutingKey = "orders.created",
+        Properties = new RabbitMqMessageProperties
+        {
+            CorrelationId = "order-42",
+            MessageId = Guid.NewGuid().ToString("N"),
+            ReplyTo = "orders.reply",
+            Type = "orders.created",
+            Headers = new Dictionary<string, object?>
+            {
+                ["tenant"] = "acme",
+                ["source"] = "orders-api"
+            },
+            TimestampUtc = DateTimeOffset.UtcNow
+        }
+    });
+```
+
+On the consume side, each `RabbitMqReceivedMessage<T>` includes:
+
+- `Payload` for the deserialized body
+- `Body` for the raw bytes
+- `Context` for broker metadata such as `DeliveryTag`, `Redelivered`, `Exchange`, `RoutingKey`, `CorrelationId`, `MessageId`, `ReplyTo`, `TimestampUtc`, and `Headers`
+
+That lets you keep strongly typed handlers while still inspecting the transport-level metadata when you need it.
+
+## Connection tuning
+
+`RabbitMqConnectionOptions` intentionally exposes the connection settings that most applications end up tuning in production:
+
+| Option | Purpose |
+|---|---|
+| `ConnectionUri` | Use a single URI instead of individual host settings |
+| `HostName` / `Port` / `UserName` / `Password` / `VirtualHost` | Standard connection parameters |
+| `ClientProvidedName` | Connection name shown in RabbitMQ management tooling |
+| `AutomaticRecoveryEnabled` | Reconnect automatically after network interruption |
+| `TopologyRecoveryEnabled` | Re-declare broker topology after reconnect |
+| `ConsumerDispatchConcurrency` | Number of concurrent async consumer dispatches per connection |
+| `RequestedHeartbeat` | Heartbeat interval |
+| `RequestedConnectionTimeout` | Initial connection timeout |
+| `NetworkRecoveryInterval` | Retry interval used by automatic recovery |
+
+Example:
+
+```csharp
+var connection = new RabbitMqConnectionOptions
+{
+    ConnectionUri = "amqp://guest:guest@localhost:5672/",
+    ClientProvidedName = "orders-api",
+    AutomaticRecoveryEnabled = true,
+    TopologyRecoveryEnabled = true,
+    ConsumerDispatchConcurrency = 8,
+    RequestedHeartbeat = TimeSpan.FromSeconds(30),
+    RequestedConnectionTimeout = TimeSpan.FromSeconds(15),
+    NetworkRecoveryInterval = TimeSpan.FromSeconds(5)
+};
+```
+
 ## Core DI usage
 
 `RabbitMQ.ClientKit` now includes `IServiceCollection` extensions for the built-in transient channel strategy.
@@ -327,6 +504,11 @@ public sealed class OrderPublisherService(IRabbitMqEndpointResolver rabbitMq)
 
 `ConnectionName` is optional on producers and consumers. When omitted, the definition uses `DefaultConnection`; when supplied, it resolves against one of the `NamedConnections`.
 
+Configured endpoints resolve to richer handles than just raw options:
+
+- `IRabbitMqEndpointResolver.GetRequiredProducer(name)` returns a `RabbitMqConfiguredProducer` with the producer registration, resolved publisher, resolved client, and bound `RabbitMqPublishOptions`
+- `IRabbitMqEndpointResolver.GetRequiredConsumer(name)` returns a `RabbitMqConfiguredConsumer` with the consumer registration, resolved consumer, resolved client, and bound `RabbitMqConsumerOptions`
+
 ## Dynamic configuration package
 
 If you want settings to come from a database or another reloadable source instead of being fixed at startup, use the optional `RabbitMQ.ClientKit.DynamicConfiguration` package.
@@ -413,6 +595,47 @@ The pooling package uses:
 
 - a bounded producer-channel pool for publish-heavy workloads
 - a reusable consumer-channel store keyed by consumer name, so long-lived consumer channels can be retained and reused between subscriptions
+
+## Customization and extensibility
+
+The README examples use the default JSON serializer and the built-in connection/channel implementations, but the public abstractions are intentionally open for customization.
+
+Useful extension points include:
+
+- `IRabbitMqSerializer` when you want a serializer other than the built-in `JsonRabbitMqSerializer`
+- `IRabbitMqConnectionManager` when connection creation/lifetime needs to be controlled externally
+- `IRabbitMqProducerChannelProvider` and `IRabbitMqConsumerChannelProvider` when you want a different channel-leasing strategy
+- `IRabbitMqEndpointResolver` for resolving configured named endpoints from DI
+- `IRabbitMqDynamicConfigurationSource` for loading dynamic configuration snapshots from a database, API, or custom provider
+- `IRabbitMqDynamicClientActivator` when dynamically resolved clients need a custom construction strategy
+
+For example, a custom serializer can be registered in DI before the higher-level services are consumed:
+
+```csharp
+public sealed class CustomSerializer : IRabbitMqSerializer
+{
+    public string ContentType => "application/json";
+
+    public ReadOnlyMemory<byte> Serialize<T>(T message)
+    {
+        throw new NotImplementedException();
+    }
+
+    public T Deserialize<T>(ReadOnlyMemory<byte> body)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+var services = new ServiceCollection();
+services.AddRabbitMqClient(new RabbitMqConnectionOptions
+{
+    HostName = "localhost"
+});
+services.AddSingleton<IRabbitMqSerializer, CustomSerializer>();
+```
+
+If you replace default services after calling `AddRabbitMqClient(...)`, use the usual .NET DI override patterns so the final registration order matches the behavior you want.
 
 ## Testing
 
