@@ -5,7 +5,6 @@ using RabbitMQ.ClientKit.Configuration;
 using RabbitMQ.ClientKit.Consuming;
 using RabbitMQ.ClientKit.Publishing;
 using RabbitMQ.ClientKit.Serialization;
-using RabbitMQ.ClientKit.Topology;
 
 namespace RabbitMQ.ClientKit.ChannelPooling;
 
@@ -94,8 +93,7 @@ public static class ServiceCollectionExtensions
                 new RabbitMqPublisher
                 (
                     sp.GetRequiredKeyedService<IRabbitMqProducerChannelProvider>(key),
-                    sp.GetRequiredKeyedService<IRabbitMqSerializer>(key),
-                    sp.GetRequiredKeyedService<RabbitMqTopologyInitializer>(key)
+                    sp.GetRequiredKeyedService<IRabbitMqSerializer>(key)
                 )
         );
         services.AddKeyedSingleton<RabbitMqConsumer>
@@ -105,8 +103,7 @@ public static class ServiceCollectionExtensions
                 new RabbitMqConsumer
                 (
                     sp.GetRequiredKeyedService<IRabbitMqConsumerChannelProvider>(key),
-                    sp.GetRequiredKeyedService<IRabbitMqSerializer>(key),
-                    sp.GetRequiredKeyedService<RabbitMqTopologyInitializer>(key)
+                    sp.GetRequiredKeyedService<IRabbitMqSerializer>(key)
                 )
         );
         services.AddKeyedSingleton<RabbitMqClient>

@@ -18,5 +18,10 @@ public enum RabbitMqConsumeDisposition
     /// <summary>
     /// Negatively acknowledge the message and requeue it.
     /// </summary>
-    Requeue
+    Requeue,
+
+    /// <summary>
+    /// The message was already acknowledged, negatively acknowledged, or replaced by the delivery handle.
+    /// </summary>
+    Handled
 }

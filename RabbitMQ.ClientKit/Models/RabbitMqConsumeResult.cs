@@ -20,4 +20,9 @@ public sealed record RabbitMqConsumeResult(RabbitMqConsumeDisposition Dispositio
     /// Gets a consume result that requeues the delivery.
     /// </summary>
     public static RabbitMqConsumeResult Requeue { get; } = new(RabbitMqConsumeDisposition.Requeue);
+
+    /// <summary>
+    /// Gets a consume result indicating the delivery was handled directly via its delivery handle.
+    /// </summary>
+    public static RabbitMqConsumeResult Handled { get; } = new(RabbitMqConsumeDisposition.Handled);
 }

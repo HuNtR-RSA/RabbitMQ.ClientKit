@@ -1,5 +1,6 @@
 using NSubstitute;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 using RabbitMQ.ClientKit.ChannelPooling;
 using RabbitMQ.ClientKit.Tests.Support;
 
@@ -52,6 +53,31 @@ public sealed class ReusableConsumerChannelProviderTests
         }
 
         firstChannel.IsOpen.Returns(false);
+        await using var secondLease = await provider.RentAsync("orders-consumer");
+
+        Assert.Same(secondChannel, secondLease.Channel);
+        Assert.Equal(2, manager.CreateChannelCalls);
+    }
+
+    [Fact]
+    public async Task RentAsync_ReplacesChannelAfterCallbackException()
+    {
+        var firstChannel = CreateOpenChannel();
+        var secondChannel = CreateOpenChannel();
+        var manager = new TestConnectionManager(firstChannel, secondChannel);
+        var provider = new ReusableConsumerChannelProvider(manager);
+
+        await using (var firstLease = await provider.RentAsync("orders-consumer"))
+        {
+            Assert.Same(firstChannel, firstLease.Channel);
+        }
+
+        firstChannel.CallbackExceptionAsync += Raise.Event<AsyncEventHandler<CallbackExceptionEventArgs>>
+        (
+            firstChannel,
+            new CallbackExceptionEventArgs(new Dictionary<string, object>(), new Exception("test callback error"))
+        );
+
         await using var secondLease = await provider.RentAsync("orders-consumer");
 
         Assert.Same(secondChannel, secondLease.Channel);

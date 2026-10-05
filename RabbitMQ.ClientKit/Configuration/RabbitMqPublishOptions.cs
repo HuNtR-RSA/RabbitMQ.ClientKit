@@ -35,6 +35,18 @@ public sealed class RabbitMqPublishOptions
     /// </summary>
     public RabbitMqTopologyOptions? Topology { get; init; }
 
+    /// <summary>
+    /// Gets a value indicating whether the leased producer channel should track publisher confirmations.
+    /// Client 7 enables this at channel creation; there is no later ConfirmSelect.
+    /// </summary>
+    public bool PublisherConfirms { get; init; }
+
+    /// <summary>
+    /// Gets the timeout used when <see cref="PublisherConfirms" /> is enabled.
+    /// Defaults to 30 seconds.
+    /// </summary>
+    public TimeSpan ConfirmTimeout { get; init; } = TimeSpan.FromSeconds(30);
+
     internal string ResolveRoutingKey()
     {
         if (!string.IsNullOrWhiteSpace(RoutingKey))
@@ -42,12 +54,9 @@ public sealed class RabbitMqPublishOptions
             return RoutingKey;
         }
 
-        if (!string.IsNullOrWhiteSpace(QueueName))
-        {
-            return QueueName;
-        }
-
-        return string.Empty;
+        return !string.IsNullOrWhiteSpace(QueueName)
+            ? QueueName
+            : string.Empty;
     }
 
     internal void Validate()

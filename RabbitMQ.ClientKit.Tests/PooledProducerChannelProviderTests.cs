@@ -33,6 +33,48 @@ public sealed class PooledProducerChannelProviderTests
 
         Assert.Same(firstChannel, secondLease.Channel);
         Assert.Equal(1, manager.CreateChannelCalls);
+        Assert.False(manager.CreateChannelOptionsHistory[0]!.PublisherConfirmationsEnabled);
+    }
+
+    [Fact]
+    public async Task RentAsync_DoesNotReuseChannelAcrossDifferentConfirmationModes()
+    {
+        var nonConfirmChannel = CreateOpenChannel();
+        var confirmChannel = CreateOpenChannel();
+        var manager = new TestConnectionManager(nonConfirmChannel, confirmChannel);
+        var provider = new PooledProducerChannelProvider(manager, new RabbitMqChannelPoolingOptions { ProducerPoolSize = 2 });
+
+        await using (var firstLease = await provider.RentAsync(publisherConfirmationsEnabled: false))
+        {
+            Assert.Same(nonConfirmChannel, firstLease.Channel);
+        }
+
+        await using var secondLease = await provider.RentAsync(publisherConfirmationsEnabled: true);
+
+        Assert.Same(confirmChannel, secondLease.Channel);
+        Assert.Equal(2, manager.CreateChannelCalls);
+        Assert.False(manager.CreateChannelOptionsHistory[0]!.PublisherConfirmationsEnabled);
+        Assert.True(manager.CreateChannelOptionsHistory[1]!.PublisherConfirmationsEnabled);
+    }
+
+    [Fact]
+    public async Task RentAsync_ReclaimsIdleChannelFromDifferentConfirmationPoolWhenPoolIsFull()
+    {
+        var firstChannel = CreateOpenChannel();
+        var secondChannel = CreateOpenChannel();
+        var manager = new TestConnectionManager(firstChannel, secondChannel);
+        var provider = new PooledProducerChannelProvider(manager, new RabbitMqChannelPoolingOptions { ProducerPoolSize = 1 });
+
+        await using (var firstLease = await provider.RentAsync(publisherConfirmationsEnabled: false))
+        {
+            Assert.Same(firstChannel, firstLease.Channel);
+        }
+
+        await using var secondLease = await provider.RentAsync(publisherConfirmationsEnabled: true);
+
+        Assert.Same(secondChannel, secondLease.Channel);
+        Assert.Equal(2, manager.CreateChannelCalls);
+        await firstChannel.Received(1).DisposeAsync();
     }
 
     private static IChannel CreateOpenChannel()

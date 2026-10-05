@@ -10,9 +10,16 @@ public sealed class TransientProducerChannelProvider(IRabbitMqConnectionManager 
     private readonly IRabbitMqConnectionManager _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
 
     /// <inheritdoc />
-    public async ValueTask<IRabbitMqChannelLease> RentAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<IRabbitMqChannelLease> RentAsync
+    (
+        bool publisherConfirmationsEnabled = false,
+        TimeSpan? confirmTimeout = null,
+        CancellationToken cancellationToken = default
+    )
     {
-        var channel = await _connectionManager.CreateChannelAsync(cancellationToken).ConfigureAwait(false);
+        var options = RabbitMqChannelOptionsFactory.CreateChannelOptions(publisherConfirmationsEnabled, confirmTimeout);
+        var channel = await _connectionManager.CreateChannelAsync(options, cancellationToken).ConfigureAwait(false);
+        RabbitMqChannelOptionsFactory.ConfigureChannel(channel, publisherConfirmationsEnabled, confirmTimeout);
         
         return new AsyncDisposableChannelLease(channel);
     }

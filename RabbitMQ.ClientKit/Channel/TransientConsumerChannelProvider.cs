@@ -14,7 +14,9 @@ public sealed class TransientConsumerChannelProvider(IRabbitMqConnectionManager 
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(consumerName);
 
-        var channel = await _connectionManager.CreateChannelAsync(cancellationToken).ConfigureAwait(false);
+        var options = RabbitMqChannelOptionsFactory.CreateChannelOptions(publisherConfirmationsEnabled: true);
+        var channel = await _connectionManager.CreateChannelAsync(options, cancellationToken).ConfigureAwait(false);
+        RabbitMqChannelOptionsFactory.ConfigureChannel(channel, publisherConfirmationsEnabled: true);
         
         return new AsyncDisposableChannelLease(channel);
     }

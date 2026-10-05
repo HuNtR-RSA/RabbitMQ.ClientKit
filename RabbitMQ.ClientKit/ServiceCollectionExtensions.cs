@@ -7,7 +7,6 @@ using RabbitMQ.ClientKit.Connection;
 using RabbitMQ.ClientKit.Consuming;
 using RabbitMQ.ClientKit.Publishing;
 using RabbitMQ.ClientKit.Serialization;
-using RabbitMQ.ClientKit.Topology;
 
 namespace RabbitMQ.ClientKit;
 
@@ -33,7 +32,6 @@ public static class ServiceCollectionExtensions
 
         services.TryAddSingleton(connectionOptions);
         services.TryAddSingleton<IRabbitMqSerializer, JsonRabbitMqSerializer>();
-        services.TryAddSingleton<RabbitMqTopologyInitializer>();
         services.TryAddSingleton<IRabbitMqConnectionManager>(sp => new RabbitMqConnectionManager(sp.GetRequiredService<RabbitMqConnectionOptions>()));
         services.TryAddSingleton<IRabbitMqProducerChannelProvider, TransientProducerChannelProvider>();
         services.TryAddSingleton<IRabbitMqConsumerChannelProvider, TransientConsumerChannelProvider>();
@@ -43,8 +41,7 @@ public static class ServiceCollectionExtensions
                 new RabbitMqPublisher
                 (
                     sp.GetRequiredService<IRabbitMqProducerChannelProvider>(),
-                    sp.GetRequiredService<IRabbitMqSerializer>(),
-                    sp.GetRequiredService<RabbitMqTopologyInitializer>()
+                    sp.GetRequiredService<IRabbitMqSerializer>()
                 )
         );
         services.TryAddSingleton<RabbitMqConsumer>
@@ -52,9 +49,8 @@ public static class ServiceCollectionExtensions
             sp => 
                 new RabbitMqConsumer
                 (
-                    sp.GetRequiredService<IRabbitMqConsumerChannelProvider>(), 
-                    sp.GetRequiredService<IRabbitMqSerializer>(), 
-                    sp.GetRequiredService<RabbitMqTopologyInitializer>()
+                    sp.GetRequiredService<IRabbitMqConsumerChannelProvider>(),
+                    sp.GetRequiredService<IRabbitMqSerializer>()
                 )
         );
         services.TryAddSingleton<RabbitMqClient>
@@ -92,7 +88,6 @@ public static class ServiceCollectionExtensions
 
         services.AddKeyedSingleton(connectionName, connectionOptions);
         services.AddKeyedSingleton<IRabbitMqSerializer, JsonRabbitMqSerializer>(connectionName);
-        services.AddKeyedSingleton<RabbitMqTopologyInitializer>(connectionName);
         services.AddKeyedSingleton<IRabbitMqConnectionManager>
         (
             connectionName,
@@ -115,8 +110,7 @@ public static class ServiceCollectionExtensions
                 new RabbitMqPublisher
                 (
                     sp.GetRequiredKeyedService<IRabbitMqProducerChannelProvider>(key),
-                    sp.GetRequiredKeyedService<IRabbitMqSerializer>(key),
-                    sp.GetRequiredKeyedService<RabbitMqTopologyInitializer>(key)
+                    sp.GetRequiredKeyedService<IRabbitMqSerializer>(key)
                 )
         );
         services.AddKeyedSingleton<RabbitMqConsumer>
@@ -126,8 +120,7 @@ public static class ServiceCollectionExtensions
                 new RabbitMqConsumer
                 (
                     sp.GetRequiredKeyedService<IRabbitMqConsumerChannelProvider>(key),
-                    sp.GetRequiredKeyedService<IRabbitMqSerializer>(key),
-                    sp.GetRequiredKeyedService<RabbitMqTopologyInitializer>(key)
+                    sp.GetRequiredKeyedService<IRabbitMqSerializer>(key)
                 )
         );
         services.AddKeyedSingleton<RabbitMqClient>
@@ -152,9 +145,11 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The service collection to configure.</param>
     /// <param name="configurationSection">The configuration section containing RabbitMQ settings.</param>
     /// <returns>The same service collection for chaining.</returns>
-    public static IServiceCollection AddRabbitMqClientKit(
+    public static IServiceCollection AddRabbitMqClientKit
+    (
         this IServiceCollection services,
-        IConfigurationSection configurationSection)
+        IConfigurationSection configurationSection
+    )
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configurationSection);
@@ -191,10 +186,12 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    private static IReadOnlyDictionary<string, RabbitMqProducerRegistration> CreateProducerRegistrations(
+    private static IReadOnlyDictionary<string, RabbitMqProducerRegistration> CreateProducerRegistrations
+    (
         IEnumerable<RabbitMqProducerConfiguration> configurations,
         ISet<string> knownConnections,
-        bool hasDefaultConnection)
+        bool hasDefaultConnection
+    )
     {
         var producers = new Dictionary<string, RabbitMqProducerRegistration>(StringComparer.OrdinalIgnoreCase);
 
@@ -203,10 +200,12 @@ public static class ServiceCollectionExtensions
             ArgumentException.ThrowIfNullOrWhiteSpace(configuration.Name);
             ValidateConnectionReference(configuration.ConnectionName, knownConnections, hasDefaultConnection, $"producer '{configuration.Name}'");
 
-            var registration = new RabbitMqProducerRegistration(
+            var registration = new RabbitMqProducerRegistration
+            (
                 configuration.Name,
                 configuration.ConnectionName,
-                configuration.Publish.ToOptions());
+                configuration.Publish.ToOptions()
+            );
 
             if (!producers.TryAdd(registration.Name, registration))
             {
@@ -217,10 +216,12 @@ public static class ServiceCollectionExtensions
         return producers;
     }
 
-    private static IReadOnlyDictionary<string, RabbitMqConsumerRegistration> CreateConsumerRegistrations(
+    private static IReadOnlyDictionary<string, RabbitMqConsumerRegistration> CreateConsumerRegistrations
+    (
         IEnumerable<RabbitMqConsumerConfiguration> configurations,
         ISet<string> knownConnections,
-        bool hasDefaultConnection)
+        bool hasDefaultConnection
+    )
     {
         var consumers = new Dictionary<string, RabbitMqConsumerRegistration>(StringComparer.OrdinalIgnoreCase);
 
@@ -232,7 +233,7 @@ public static class ServiceCollectionExtensions
             var registration = new RabbitMqConsumerRegistration(
                 configuration.Name,
                 configuration.ConnectionName,
-                configuration.Consume.ToOptions());
+                configuration.ToOptions());
 
             if (!consumers.TryAdd(registration.Name, registration))
             {
@@ -243,11 +244,13 @@ public static class ServiceCollectionExtensions
         return consumers;
     }
 
-    private static void ValidateConnectionReference(
+    private static void ValidateConnectionReference
+    (
         string? connectionName,
         ISet<string> knownConnections,
         bool hasDefaultConnection,
-        string ownerDescription)
+        string ownerDescription
+    )
     {
         if (string.IsNullOrWhiteSpace(connectionName))
         {

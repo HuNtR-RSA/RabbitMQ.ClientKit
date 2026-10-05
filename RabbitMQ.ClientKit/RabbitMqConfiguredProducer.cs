@@ -14,10 +14,12 @@ public sealed class RabbitMqConfiguredProducer
     /// <param name="registration">The configured producer registration.</param>
     /// <param name="publisher">The resolved publisher.</param>
     /// <param name="client">The resolved client.</param>
-    public RabbitMqConfiguredProducer(
+    public RabbitMqConfiguredProducer
+    (
         RabbitMqProducerRegistration registration,
         RabbitMqPublisher publisher,
-        RabbitMqClient client)
+        RabbitMqClient client
+    )
     {
         Registration = registration ?? throw new ArgumentNullException(nameof(registration));
         Publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));

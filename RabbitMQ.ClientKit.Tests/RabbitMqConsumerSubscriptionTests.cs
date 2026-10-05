@@ -43,4 +43,25 @@ public sealed class RabbitMqConsumerSubscriptionTests
         await channel.Received(1).BasicCancelAsync("consumer-tag", false, Arg.Any<CancellationToken>());
         await lease.Received(1).DisposeAsync();
     }
+
+    [Fact]
+    public async Task IsHealthy_ReflectsChannelStateAndDisposal()
+    {
+        var lease = Substitute.For<IRabbitMqChannelLease>();
+        var channel = Substitute.For<IChannel>();
+        channel.IsOpen.Returns(true);
+
+        var subscription = new RabbitMqConsumerSubscription(lease, channel, "consumer-tag", new CancellationTokenSource());
+
+        Assert.True(subscription.IsHealthy);
+
+        channel.IsOpen.Returns(false);
+        Assert.False(subscription.IsHealthy);
+
+        channel.IsOpen.Returns(true);
+        Assert.True(subscription.IsHealthy);
+
+        await subscription.StopAsync();
+        Assert.False(subscription.IsHealthy);
+    }
 }

@@ -38,7 +38,20 @@ public sealed class ReusableConsumerChannelProvider(IRabbitMqConnectionManager c
                     await state.Channel.DisposeAsync().ConfigureAwait(false);
                 }
 
-                state.Channel = await _connectionManager.CreateChannelAsync(cancellationToken).ConfigureAwait(false);
+                var options = RabbitMqChannelOptionsFactory.CreateChannelOptions(publisherConfirmationsEnabled: true);
+                var createdChannel = await _connectionManager.CreateChannelAsync(options, cancellationToken).ConfigureAwait(false);
+                RabbitMqChannelOptionsFactory.ConfigureChannel(createdChannel, publisherConfirmationsEnabled: true);
+                createdChannel.CallbackExceptionAsync += (sender, _) =>
+                {
+                    if (ReferenceEquals(state.Channel, sender))
+                    {
+                        state.Channel = null;
+                    }
+
+                    return Task.CompletedTask;
+                };
+
+                state.Channel = createdChannel;
             }
 
             state.IsLeased = true;
@@ -66,7 +79,7 @@ public sealed class ReusableConsumerChannelProvider(IRabbitMqConnectionManager c
             await state.Sync.WaitAsync().ConfigureAwait(false);
             try
             {
-                if (!state.IsLeased && state.Channel is not null)
+                if (state is { IsLeased: false, Channel: not null })
                 {
                     await state.Channel.DisposeAsync().ConfigureAwait(false);
                     state.Channel = null;
@@ -111,6 +124,7 @@ public sealed class ReusableConsumerChannelProvider(IRabbitMqConnectionManager c
 
     private void ThrowIfDisposed()
     {
+        ObjectDisposedException.ThrowIf(_disposed, "The consumer channel provider is already disposed.");
         if (_disposed)
         {
             throw new ObjectDisposedException(nameof(ReusableConsumerChannelProvider));

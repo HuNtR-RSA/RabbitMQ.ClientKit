@@ -84,9 +84,13 @@ public sealed class DynamicConfigurationTests
                 ["RabbitMq:NamedConnections:0:ClientProvidedName"] = "billing-api",
                 ["RabbitMq:Producers:0:Name"] = "orders-created",
                 ["RabbitMq:Producers:0:Publish:QueueName"] = "orders.created",
+                ["RabbitMq:Producers:0:Publish:PublisherConfirms"] = "true",
+                ["RabbitMq:Producers:0:Publish:ConfirmTimeout"] = "00:00:15",
+                ["RabbitMq:Producers:0:Publish:Topology:Queues:0:Name"] = "orders.failed",
+                ["RabbitMq:Producers:0:Publish:Topology:Queues:1:Name"] = "orders.invalid",
                 ["RabbitMq:Consumers:0:Name"] = "billing-worker",
                 ["RabbitMq:Consumers:0:ConnectionName"] = "billing",
-                ["RabbitMq:Consumers:0:Consume:QueueName"] = "billing.charged"
+                ["RabbitMq:Consumers:0:Subscribe:QueueName"] = "billing.charged"
             })
             .Build();
 
@@ -105,6 +109,9 @@ public sealed class DynamicConfigurationTests
         var consumerRegistration = await consumer.GetRegistrationAsync();
 
         Assert.Equal("orders.created", producerRegistration.Options.QueueName);
+        Assert.True(producerRegistration.Options.PublisherConfirms);
+        Assert.Equal(TimeSpan.FromSeconds(15), producerRegistration.Options.ConfirmTimeout);
+        Assert.Equal(2, producerRegistration.Options.Topology?.Queues.Count);
         Assert.Equal("billing", consumerRegistration.ConnectionName);
         Assert.Equal("default-rabbit", (await resolver.GetSnapshotAsync()).DefaultConnection?.HostName);
         Assert.Equal("billing-rabbit", (await resolver.GetSnapshotAsync()).NamedConnections["billing"].HostName);

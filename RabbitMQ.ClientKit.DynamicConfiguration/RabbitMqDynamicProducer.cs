@@ -1,4 +1,5 @@
 using RabbitMQ.ClientKit.Configuration;
+using RabbitMQ.ClientKit.Models;
 using RabbitMQ.ClientKit.Publishing;
 
 namespace RabbitMQ.ClientKit.DynamicConfiguration;
@@ -25,8 +26,8 @@ public sealed class RabbitMqDynamicProducer
     /// Gets the latest producer registration.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token for the load operation.</param>
-    public ValueTask<RabbitMqProducerRegistration> GetRegistrationAsync(CancellationToken cancellationToken = default) =>
-        _runtime.GetProducerRegistrationAsync(Name, cancellationToken);
+    public ValueTask<RabbitMqProducerRegistration> GetRegistrationAsync(CancellationToken cancellationToken = default)
+        => _runtime.GetProducerRegistrationAsync(Name, cancellationToken);
 
     /// <summary>
     /// Gets the current publisher for the producer's configured connection.
@@ -68,10 +69,11 @@ public sealed class RabbitMqDynamicProducer
     /// <typeparam name="T">The payload type.</typeparam>
     /// <param name="messages">The messages to publish.</param>
     /// <param name="cancellationToken">The cancellation token for the publish operation.</param>
-    public async Task PublishBatchAsync<T>(IEnumerable<T> messages, CancellationToken cancellationToken = default)
+    /// <returns>The outcome of the batch publish operation.</returns>
+    public async Task<RabbitMqPublishBatchResult> PublishBatchAsync<T>(IEnumerable<T> messages, CancellationToken cancellationToken = default)
     {
         var registration = await GetRegistrationAsync(cancellationToken).ConfigureAwait(false);
         var publisher = await GetPublisherAsync(cancellationToken).ConfigureAwait(false);
-        await publisher.PublishBatchAsync(messages, registration.Options, cancellationToken).ConfigureAwait(false);
+        return await publisher.PublishBatchAsync(messages, registration.Options, cancellationToken).ConfigureAwait(false);
     }
 }

@@ -70,12 +70,16 @@ await using var subscription = await client.SubscribeAsync<dynamic>(
     });
 ```
 
-## Batch publishing
+## Batch publishing and publisher confirms
 
-RabbitMQ.Client v7+ no longer exposes the old bulk-publish API, so `RabbitMQ.ClientKit` batch publishing reuses a single leased channel and publishes each message individually.
+RabbitMQ.Client v7+ establishes publisher confirmations at channel creation (`CreateChannelOptions`). `RabbitMQ.ClientKit` enables confirm tracking on publisher channels with a configurable timeout (default 30s).
+
+### Batch publishing
+
+Batch publishing reuses a single leased channel and publishes each message individually while tracking confirmations.
 
 ```csharp
-await client.PublishBatchAsync(
+var result = await client.PublishBatchAsync(
     new[]
     {
         new { OrderId = 42, Status = "Created" },
@@ -83,11 +87,97 @@ await client.PublishBatchAsync(
     },
     new RabbitMqPublishOptions
     {
-        QueueName = "orders.created"
+        QueueName = "orders.created",
+        PublisherConfirms = true
     });
 ```
 
-Batch publishing uses one shared `RabbitMqPublishOptions` instance for the batch.
+### Batch result status (NotSent vs Unconfirmed)
+
+`PublishBatchAsync` returns a `RabbitMqPublishBatchResult` indicating the exact publish outcome:
+
+| Status | Meaning | Transaction / Rollback Guidance |
+|---|---|---|
+| `Confirmed` | All messages published and confirmed by the broker (or empty batch). | Safe to commit. |
+| `NotSent` | Failure occurred before the batch wrote its first publish frame (e.g. channel lease, topology declaration, or first-message serialization threw). | **Safe to roll back** database transactions. |
+| `Unconfirmed` | Failure occurred after at least one frame was written (e.g. publish or confirm timeout threw mid-batch). Contains `AttemptedCount` and `ConfirmedCount`. | **Do NOT roll back** transactions; broker may have received/queued messages. |
+
+## Raw publishing
+
+You can publish raw byte payloads directly without invoking serializer logic:
+
+```csharp
+ReadOnlyMemory<byte> rawBytes = new byte[] { 0x01, 0x02, 0x03 };
+
+await client.PublishAsync(
+    rawBytes,
+    new RabbitMqPublishOptions
+    {
+        QueueName = "events.raw",
+        Properties = new RabbitMqMessageProperties
+        {
+            ContentType = "application/octet-stream"
+        }
+    });
+```
+
+## Replace-then-ack and delivery handles
+
+Consumers receive an `IRabbitMqDeliveryHandle` on `RabbitMqReceivedMessage<T>.Delivery` that enables in-place message replacement and manual acknowledgment. When `AutoAck = true`, `Delivery` is `null` because the broker settles the delivery before the handler runs.
+
+```csharp
+await using var subscription = await client.SubscribeAsync<OrderMessage>(
+    new RabbitMqConsumerOptions
+    {
+        QueueName = "orders.input",
+        ConsumerName = "orders-processor"
+    },
+    async (message, cancellationToken) =>
+    {
+        var replacement = new ProcessedOrder { Id = message.Payload.Id, Status = "Processed" };
+
+        await message.Delivery!.ReplaceAndAckAsync(
+            replacement,
+            new RabbitMqPublishOptions { QueueName = "orders.output" },
+            cancellationToken);
+
+        return RabbitMqConsumeResult.Handled;
+    });
+```
+
+### Replace-then-ack semantics
+
+`ReplaceAndAckAsync` implements a confirm-then-ack workflow on the same consumer channel:
+1. Publishes the replacement message and waits for the broker confirmation.
+2. If the replacement confirm fails or throws: negatively acknowledges (`nack`) the original message with requeue.
+3. If the replacement confirm succeeds: acknowledges (`ack`) the original message. If the subsequent `ack` throws, the exception is swallowed and the original is **not** nacked (preventing duplicate replacements).
+
+When using `ReplaceAndAckAsync` or manual delivery settlement, return `RabbitMqConsumeResult.Handled` so the consumer wrapper does not double-ack or double-nack.
+
+Replacement publishes honor the supplied `RabbitMqPublishOptions`, including `Topology`, so a handler can declare the destination exchange and queues before republishing.
+
+### Confirm-then-ack duplicate window
+
+If a consumer crashes or network connectivity is lost in the brief window between a successful replacement confirm and the broker processing the original message's ack, RabbitMQ will redeliver the original message upon reconnect. **Message handlers must be designed to be idempotent.**
+
+## Topology and multi-queue declarations
+
+Topology declarations can be initialized automatically on publish/consume or executed standalone via `DeclareAsync`:
+
+```csharp
+var topology = new RabbitMqTopologyOptions
+{
+    Queue = new RabbitMqQueueOptions { Name = "orders.work", Durable = true },
+    Queues =
+    [
+        new RabbitMqQueueOptions { Name = "orders.failed", Durable = true },
+        new RabbitMqQueueOptions { Name = "orders.invalid", Durable = true }
+    ]
+};
+
+// Declare topology without publishing
+await client.DeclareAsync(topology);
+```
 
 ## Advanced topology
 
@@ -264,6 +354,25 @@ var connection = new RabbitMqConnectionOptions
     RequestedConnectionTimeout = TimeSpan.FromSeconds(15),
     NetworkRecoveryInterval = TimeSpan.FromSeconds(5)
 };
+```
+
+## Client caching
+
+`RabbitMqClientCache` provides thread-safe caching and reuse of `RabbitMqClient` instances keyed by the effective connection configuration (broker identity, credentials, and connection settings), avoiding duplicate connection management overhead when connecting dynamically across multiple services:
+
+```csharp
+await using var cache = new RabbitMqClientCache();
+
+// Resolve or create a client from connection options
+var client1 = cache.GetOrCreate(new RabbitMqConnectionOptions
+{
+    HostName = "rabbit-cluster",
+    Port = 5672,
+    VirtualHost = "orders"
+});
+
+// Or resolve directly by URI
+var client2 = cache.GetOrCreate(new Uri("amqp://guest:guest@rabbit-cluster:5672/orders"));
 ```
 
 ## Core DI usage
@@ -462,14 +571,14 @@ You can also register a default connection, named connections, and arrays of nam
     "Consumers": [
       {
         "Name": "orders-worker",
-        "Consume": {
+        "Subscribe": {
           "QueueName": "orders.created"
         }
       },
       {
         "Name": "billing-worker",
         "ConnectionName": "billing",
-        "Consume": {
+        "Subscribe": {
           "QueueName": "billing.charged",
           "ConsumerName": "billing-worker-channel"
         }
@@ -591,6 +700,8 @@ await rabbitMq.RefreshAsync(cancellationToken);
 
 Future producer calls will use the latest loaded options and connection mapping. Existing active consumer subscriptions are not hot-swapped automatically; refresh affects future `SubscribeAsync(...)` calls.
 
+For configuration binding, `Subscribe` is the preferred consumer section name. The older `Consume` section name is still accepted for compatibility.
+
 The pooling package uses:
 
 - a bounded producer-channel pool for publish-heavy workloads
@@ -682,16 +793,23 @@ The load scenarios are:
 
 ## Performance snapshot
 
-Current local baseline from `RabbitMqLoadTests.TransientAndPooledClients_ReportComparativeMetrics` with `RABBITMQ_CLIENTKIT_LOAD_MESSAGE_COUNT=50000`:
+Current local baseline from `RabbitMqLoadTests.TransientAndPooledClients_ReportComparativeMetrics` with `RABBITMQ_CLIENTKIT_LOAD_MESSAGE_COUNT=100000`:
 
 | Strategy | Publish duration | Publish throughput | End-to-end duration | End-to-end throughput | Notes |
 |---|---|---:|---|---:|---|
-| Transient/default | `1.385s` | `36,111 msg/s` | `3.226s` | `15,497 msg/s` | Windows 11, Ryzen 7 5800X, 32 GB RAM, Docker 29.8.1, `rabbitmq:3.13-management`, `dotnet test --no-build --filter "FullyQualifiedName~RabbitMqLoadTests.TransientAndPooledClients_ReportComparativeMetrics" --logger "console;verbosity=detailed"` |
-| Pooled | `0.925s` | `54,063 msg/s` | `2.963s` | `16,873 msg/s` | Same host and broker settings as transient/default |
+| Transient/default | `1.928s` | `51,876 msg/s` | `5.349s` | `18,695 msg/s` | Windows 11, Ryzen 7 5800X, 32 GB RAM, Docker 29.8.2, `rabbitmq:3.13-management`, `dotnet test --no-build --filter "Category=Load" --logger "console;verbosity=detailed"` |
+| Pooled | `1.556s` | `64,264 msg/s` | `5.567s` | `17,963 msg/s` | Same host and broker settings as transient/default |
 
-In this run, pooled throughput was about **`1.50x` faster for publish throughput** and **`1.09x` faster end-to-end** than the transient/default strategy.
+In this comparative run, pooled throughput was about **`1.24x` faster for publish throughput** and **`0.96x` of the transient/default end-to-end throughput**.
 
-Treat this as a reproducible local baseline rather than a formal benchmark: the numbers still include test-host and broker-container overhead, so absolute throughput will vary by machine and runtime configuration.
+The isolated single-scenario stress runs from the same 100k-message suite were still favorable to pooling end-to-end:
+
+| Scenario run | Publish throughput | End-to-end throughput |
+|---|---:|---:|
+| `TransientClient_PublishesAndConsumesConfiguredBurst` | `43,379 msg/s` | `17,632 msg/s` |
+| `PooledClient_PublishesAndConsumesConfiguredBurst` | `64,419 msg/s` | `18,600 msg/s` |
+
+Treat these as reproducible local baselines rather than formal benchmarks: the numbers still include test-host, test-runner, and broker-container overhead, so absolute throughput and even the relative end-to-end winner can vary by machine and run order.
 
 ## License
 
