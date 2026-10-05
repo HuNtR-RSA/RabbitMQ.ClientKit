@@ -23,6 +23,11 @@ public sealed class RabbitMqConsumerSubscription(
     private string ConsumerTag { get; } = consumerTag ?? throw new ArgumentNullException(nameof(consumerTag));
 
     /// <summary>
+    /// Gets a value indicating whether the subscription is active and its underlying channel is open.
+    /// </summary>
+    public bool IsHealthy => Volatile.Read(ref _disposed) == 0 && _channel.IsOpen;
+
+    /// <summary>
     /// Stops the subscription, cancels the consumer, and releases the leased channel.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token for the stop operation.</param>

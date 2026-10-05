@@ -41,6 +41,21 @@ public sealed class RabbitMqMessageContext
     public string? ContentType { get; init; }
 
     /// <summary>
+    /// Gets the content encoding.
+    /// </summary>
+    public string? ContentEncoding { get; init; }
+
+    /// <summary>
+    /// Gets the message type name.
+    /// </summary>
+    public string? Type { get; init; }
+
+    /// <summary>
+    /// Gets the expiration string.
+    /// </summary>
+    public string? Expiration { get; init; }
+
+    /// <summary>
     /// Gets the correlation identifier.
     /// </summary>
     public string? CorrelationId { get; init; }

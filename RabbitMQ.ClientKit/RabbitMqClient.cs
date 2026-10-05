@@ -47,12 +47,14 @@ public sealed class RabbitMqClient : IAsyncDisposable
     /// <param name="producerChannelProvider">The producer channel provider.</param>
     /// <param name="consumerChannelProvider">The consumer channel provider.</param>
     /// <param name="ownsDependencies">Whether disposing the client should also dispose the supplied dependencies.</param>
-    public RabbitMqClient(
+    public RabbitMqClient
+    (
         IRabbitMqConnectionManager connectionManager,
         IRabbitMqSerializer serializer,
         IRabbitMqProducerChannelProvider producerChannelProvider,
         IRabbitMqConsumerChannelProvider consumerChannelProvider,
-        bool ownsDependencies = false)
+        bool ownsDependencies = false
+    )
     {
         _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
         var serializer1 = serializer ?? throw new ArgumentNullException(nameof(serializer));
@@ -82,8 +84,17 @@ public sealed class RabbitMqClient : IAsyncDisposable
     /// <param name="message">The payload to publish.</param>
     /// <param name="options">The publish options.</param>
     /// <param name="cancellationToken">The cancellation token for the publish operation.</param>
-    public Task PublishAsync<T>(T message, RabbitMqPublishOptions options, CancellationToken cancellationToken = default) =>
-        Publisher.PublishAsync(message, options, cancellationToken);
+    public Task PublishAsync<T>(T message, RabbitMqPublishOptions options, CancellationToken cancellationToken = default)
+        => Publisher.PublishAsync(message, options, cancellationToken);
+
+    /// <summary>
+    /// Publishes a raw byte payload without running serialization using the configured publisher service.
+    /// </summary>
+    /// <param name="body">The raw payload to publish.</param>
+    /// <param name="options">The publish options.</param>
+    /// <param name="cancellationToken">The cancellation token for the publish operation.</param>
+    public Task PublishAsync(ReadOnlyMemory<byte> body, RabbitMqPublishOptions options, CancellationToken cancellationToken = default)
+        => Publisher.PublishAsync(body, options, cancellationToken);
 
     /// <summary>
     /// Publishes multiple payloads using the configured publisher service.
@@ -92,8 +103,25 @@ public sealed class RabbitMqClient : IAsyncDisposable
     /// <param name="messages">The payloads to publish.</param>
     /// <param name="options">The publish options shared by the batch.</param>
     /// <param name="cancellationToken">The cancellation token for the publish operation.</param>
-    public Task PublishBatchAsync<T>(IEnumerable<T> messages, RabbitMqPublishOptions options, CancellationToken cancellationToken = default) =>
+    public Task<RabbitMqPublishBatchResult> PublishBatchAsync<T>(IEnumerable<T> messages, RabbitMqPublishOptions options, CancellationToken cancellationToken = default) =>
         Publisher.PublishBatchAsync(messages, options, cancellationToken);
+
+    /// <summary>
+    /// Publishes multiple raw byte payloads using the configured publisher service.
+    /// </summary>
+    /// <param name="messages">The raw payloads to publish.</param>
+    /// <param name="options">The publish options shared by the batch.</param>
+    /// <param name="cancellationToken">The cancellation token for the publish operation.</param>
+    public Task<RabbitMqPublishBatchResult> PublishBatchAsync(IEnumerable<ReadOnlyMemory<byte>> messages, RabbitMqPublishOptions options, CancellationToken cancellationToken = default)
+        => Publisher.PublishBatchAsync(messages, options, cancellationToken);
+
+    /// <summary>
+    /// Declares the specified topology on a producer channel without publishing any messages.
+    /// </summary>
+    /// <param name="topology">The topology to declare.</param>
+    /// <param name="cancellationToken">The cancellation token for the declaration operation.</param>
+    public Task DeclareAsync(RabbitMqTopologyOptions topology, CancellationToken cancellationToken = default)
+        => Publisher.DeclareAsync(topology, cancellationToken);
 
     /// <summary>
     /// Creates a consumer subscription using the configured consumer service.
@@ -103,11 +131,13 @@ public sealed class RabbitMqClient : IAsyncDisposable
     /// <param name="handler">The message handler.</param>
     /// <param name="cancellationToken">The cancellation token for the subscribe operation.</param>
     /// <returns>The active consumer subscription.</returns>
-    public Task<RabbitMqConsumerSubscription> SubscribeAsync<T>(
+    public Task<RabbitMqConsumerSubscription> SubscribeAsync<T>
+    (
         RabbitMqConsumerOptions options,
         Func<RabbitMqReceivedMessage<T>, CancellationToken, Task<RabbitMqConsumeResult>> handler,
         CancellationToken cancellationToken = default) =>
-        Consumer.SubscribeAsync(options, handler, cancellationToken);
+        Consumer.SubscribeAsync(options, handler, cancellationToken
+    );
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()

@@ -77,32 +77,38 @@ public sealed class RabbitMqConsumer(
         }
     }
 
-    private async Task HandleMessageAsync<T>(
+    private async Task HandleMessageAsync<T>
+    (
         IChannel channel,
         BasicDeliverEventArgs args,
         RabbitMqConsumerOptions options,
         Func<RabbitMqReceivedMessage<T>, CancellationToken, Task<RabbitMqConsumeResult>> handler,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         var body = args.Body.ToArray();
+        var delivery = new RabbitMqDeliveryHandle(channel, args.DeliveryTag, _serializer);
         try
         {
             var payload = _serializer.Deserialize<T>(body);
-            var message = new RabbitMqReceivedMessage<T>(
+            var message = new RabbitMqReceivedMessage<T>
+            (
                 payload,
                 CreateMessageContext(args),
-                body);
+                body,
+                delivery
+            );
 
             var result = await handler(message, cancellationToken).ConfigureAwait(false);
 
-            if (!options.AutoAck)
+            if (!options.AutoAck && result.Disposition != RabbitMqConsumeDisposition.Handled && !delivery.IsSettled)
             {
                 await ApplyConsumeResultAsync(channel, args.DeliveryTag, result, cancellationToken).ConfigureAwait(false);
             }
         }
         catch
         {
-            if (!options.AutoAck && channel.IsOpen)
+            if (!options.AutoAck && !delivery.IsSettled && channel.IsOpen)
             {
                 await channel.BasicNackAsync(args.DeliveryTag, false, options.RequeueOnFailure, CancellationToken.None).ConfigureAwait(false);
             }
@@ -130,6 +136,8 @@ public sealed class RabbitMqConsumer(
             case RabbitMqConsumeDisposition.Requeue:
                 await channel.BasicNackAsync(deliveryTag, false, true, cancellationToken).ConfigureAwait(false);
                 break;
+            case RabbitMqConsumeDisposition.Handled:
+                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(result), result.Disposition, "Unknown consume disposition.");
         }
@@ -152,6 +160,9 @@ public sealed class RabbitMqConsumer(
             AppId = args.BasicProperties.AppId,
             ConsumerTag = args.ConsumerTag,
             ContentType = args.BasicProperties.ContentType,
+            ContentEncoding = args.BasicProperties.ContentEncoding,
+            Type = args.BasicProperties.Type,
+            Expiration = args.BasicProperties.Expiration,
             CorrelationId = args.BasicProperties.CorrelationId,
             DeliveryTag = args.DeliveryTag,
             Exchange = args.Exchange,

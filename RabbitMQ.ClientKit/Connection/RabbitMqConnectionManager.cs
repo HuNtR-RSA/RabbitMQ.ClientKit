@@ -50,10 +50,14 @@ public sealed class RabbitMqConnectionManager(RabbitMqConnectionOptions options)
     }
 
     /// <inheritdoc />
-    public async Task<IChannel> CreateChannelAsync(CancellationToken cancellationToken = default)
+    public async Task<IChannel> CreateChannelAsync
+    (
+        CreateChannelOptions? options = null,
+        CancellationToken cancellationToken = default
+    )
     {
         var connection = await GetConnectionAsync(cancellationToken).ConfigureAwait(false);
-        return await connection.CreateChannelAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        return await connection.CreateChannelAsync(options, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

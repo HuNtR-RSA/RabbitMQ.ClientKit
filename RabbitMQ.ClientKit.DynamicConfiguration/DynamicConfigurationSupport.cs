@@ -140,7 +140,7 @@ internal sealed class RabbitMqDynamicRuntime(
             }
 
             _disposed = true;
-            clients = _clients.Values.Select(static x => x.Client).ToList();
+            clients = [.. _clients.Values.Select(static x => x.Client)];
             _clients.Clear();
             _snapshot = null;
         }
@@ -470,7 +470,7 @@ internal sealed class RabbitMqTopologyOptionsModel
     {
         Exchange = Exchange?.ToOptions(),
         Queue = Queue?.ToOptions(),
-        Bindings = Bindings.Select(static x => x.ToOptions()).ToArray()
+        Bindings = [.. Bindings.Select(static x => x.ToOptions())]
     };
 }
 

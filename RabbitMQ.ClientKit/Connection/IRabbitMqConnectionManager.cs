@@ -17,7 +17,12 @@ public interface IRabbitMqConnectionManager : IAsyncDisposable
     /// <summary>
     /// Creates a channel from the managed connection.
     /// </summary>
+    /// <param name="options">The channel creation options specifying publisher confirmations and tracking.</param>
     /// <param name="cancellationToken">The cancellation token for the channel creation.</param>
     /// <returns>A newly created RabbitMQ channel.</returns>
-    Task<IChannel> CreateChannelAsync(CancellationToken cancellationToken = default);
+    Task<IChannel> CreateChannelAsync
+    (
+        CreateChannelOptions? options = null,
+        CancellationToken cancellationToken = default
+    );
 }

@@ -15,9 +15,9 @@ internal sealed class RabbitMqConfigurationRegistry : IRabbitMqConfigurationRegi
         _consumers = consumers ?? throw new ArgumentNullException(nameof(consumers));
     }
 
-    public IReadOnlyCollection<RabbitMqProducerRegistration> Producers => _producers.Values.ToArray();
+    public IReadOnlyCollection<RabbitMqProducerRegistration> Producers => [.. _producers.Values];
 
-    public IReadOnlyCollection<RabbitMqConsumerRegistration> Consumers => _consumers.Values.ToArray();
+    public IReadOnlyCollection<RabbitMqConsumerRegistration> Consumers => [.. _consumers.Values];
 
     public RabbitMqProducerRegistration GetRequiredProducer(string name) =>
         _producers.TryGetValue(name, out var producer)
@@ -233,7 +233,7 @@ internal sealed class RabbitMqTopologyOptionsConfiguration
     {
         Exchange = Exchange?.ToOptions(),
         Queue = Queue?.ToOptions(),
-        Bindings = Bindings.Select(static binding => binding.ToOptions()).ToArray()
+        Bindings = [.. Bindings.Select(static binding => binding.ToOptions())]
     };
 }
 

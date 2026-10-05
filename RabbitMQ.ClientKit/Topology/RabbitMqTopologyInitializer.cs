@@ -37,17 +37,12 @@ public sealed class RabbitMqTopologyInitializer
 
         if (topology.Queue is not null)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(topology.Queue.Name);
+            await DeclareQueueAsync(channel, topology.Queue, cancellationToken).ConfigureAwait(false);
+        }
 
-            await channel.QueueDeclareAsync
-            (
-                    topology.Queue.Name,
-                    topology.Queue.Durable,
-                    topology.Queue.Exclusive,
-                    topology.Queue.AutoDelete,
-                    topology.Queue.Arguments,
-                    cancellationToken: cancellationToken
-            ).ConfigureAwait(false);
+        foreach (var queue in topology.Queues)
+        {
+            await DeclareQueueAsync(channel, queue, cancellationToken).ConfigureAwait(false);
         }
 
         foreach (var binding in topology.Bindings)
@@ -64,5 +59,20 @@ public sealed class RabbitMqTopologyInitializer
                     cancellationToken: cancellationToken
             ).ConfigureAwait(false);
         }
+    }
+
+    private static async Task DeclareQueueAsync(IChannel channel, RabbitMqQueueOptions queue, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(queue.Name);
+
+        await channel.QueueDeclareAsync
+        (
+                queue.Name,
+                queue.Durable,
+                queue.Exclusive,
+                queue.AutoDelete,
+                queue.Arguments,
+                cancellationToken: cancellationToken
+        ).ConfigureAwait(false);
     }
 }

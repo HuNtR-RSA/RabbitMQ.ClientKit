@@ -16,7 +16,12 @@ public sealed class RabbitMqTopologyOptions
     public RabbitMqQueueOptions? Queue { get; init; }
 
     /// <summary>
+    /// Gets the queue declarations to declare in addition to <see cref="Queue"/>.
+    /// </summary>
+    public IReadOnlyCollection<RabbitMqQueueOptions> Queues { get; init; } = [];
+
+    /// <summary>
     /// Gets the queue bindings to declare.
     /// </summary>
-    public IReadOnlyCollection<RabbitMqQueueBindingOptions> Bindings { get; init; } = Array.Empty<RabbitMqQueueBindingOptions>();
+    public IReadOnlyCollection<RabbitMqQueueBindingOptions> Bindings { get; init; } = [];
 }

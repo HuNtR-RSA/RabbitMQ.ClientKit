@@ -70,12 +70,16 @@ await using var subscription = await client.SubscribeAsync<dynamic>(
     });
 ```
 
-## Batch publishing
+## Batch publishing and publisher confirms
 
-RabbitMQ.Client v7+ no longer exposes the old bulk-publish API, so `RabbitMQ.ClientKit` batch publishing reuses a single leased channel and publishes each message individually.
+RabbitMQ.Client v7+ establishes publisher confirmations at channel creation (`CreateChannelOptions`). `RabbitMQ.ClientKit` enables confirm tracking on publisher channels with a configurable timeout (default 30s).
+
+### Batch publishing
+
+Batch publishing reuses a single leased channel and publishes each message individually while tracking confirmations.
 
 ```csharp
-await client.PublishBatchAsync(
+var result = await client.PublishBatchAsync(
     new[]
     {
         new { OrderId = 42, Status = "Created" },
@@ -83,11 +87,95 @@ await client.PublishBatchAsync(
     },
     new RabbitMqPublishOptions
     {
-        QueueName = "orders.created"
+        QueueName = "orders.created",
+        PublisherConfirms = true
     });
 ```
 
-Batch publishing uses one shared `RabbitMqPublishOptions` instance for the batch.
+### Batch result status (NotSent vs Unconfirmed)
+
+`PublishBatchAsync` returns a `RabbitMqPublishBatchResult` indicating the exact publish outcome:
+
+| Status | Meaning | Transaction / Rollback Guidance |
+|---|---|---|
+| `Confirmed` | All messages published and confirmed by the broker (or empty batch). | Safe to commit. |
+| `NotSent` | Failure occurred before any publish frame was written (e.g. channel lease or topology declaration threw). | **Safe to roll back** database transactions. |
+| `Unconfirmed` | Failure occurred after at least one frame was written (e.g. publish or confirm timeout threw mid-batch). Contains `AttemptedCount` and `ConfirmedCount`. | **Do NOT roll back** transactions; broker may have received/queued messages. |
+
+## Raw publishing
+
+You can publish raw byte payloads directly without invoking serializer logic:
+
+```csharp
+ReadOnlyMemory<byte> rawBytes = new byte[] { 0x01, 0x02, 0x03 };
+
+await client.PublishAsync(
+    rawBytes,
+    new RabbitMqPublishOptions
+    {
+        QueueName = "events.raw",
+        Properties = new RabbitMqMessageProperties
+        {
+            ContentType = "application/octet-stream"
+        }
+    });
+```
+
+## Replace-then-ack and delivery handles
+
+Consumers receive an `IRabbitMqDeliveryHandle` on `RabbitMqReceivedMessage<T>.Delivery` that enables in-place message replacement and manual acknowledgment.
+
+```csharp
+await using var subscription = await client.SubscribeAsync<OrderMessage>(
+    new RabbitMqConsumerOptions
+    {
+        QueueName = "orders.input",
+        ConsumerName = "orders-processor"
+    },
+    async (message, cancellationToken) =>
+    {
+        var replacement = new ProcessedOrder { Id = message.Payload.Id, Status = "Processed" };
+
+        await message.Delivery!.ReplaceAndAckAsync(
+            replacement,
+            new RabbitMqPublishOptions { QueueName = "orders.output" },
+            cancellationToken);
+
+        return RabbitMqConsumeResult.Handled;
+    });
+```
+
+### Replace-then-ack semantics
+
+`ReplaceAndAckAsync` implements a confirm-then-ack workflow on the same consumer channel:
+1. Publishes the replacement message and waits for the broker confirmation.
+2. If the replacement confirm fails or throws: negatively acknowledges (`nack`) the original message with requeue.
+3. If the replacement confirm succeeds: acknowledges (`ack`) the original message. If the subsequent `ack` throws, the exception is swallowed and the original is **not** nacked (preventing duplicate replacements).
+
+When using `ReplaceAndAckAsync` or manual delivery settlement, return `RabbitMqConsumeResult.Handled` so the consumer wrapper does not double-ack or double-nack.
+
+### Confirm-then-ack duplicate window
+
+If a consumer crashes or network connectivity is lost in the brief window between a successful replacement confirm and the broker processing the original message's ack, RabbitMQ will redeliver the original message upon reconnect. **Message handlers must be designed to be idempotent.**
+
+## Topology and multi-queue declarations
+
+Topology declarations can be initialized automatically on publish/consume or executed standalone via `DeclareAsync`:
+
+```csharp
+var topology = new RabbitMqTopologyOptions
+{
+    Queue = new RabbitMqQueueOptions { Name = "orders.work", Durable = true },
+    Queues =
+    [
+        new RabbitMqQueueOptions { Name = "orders.failed", Durable = true },
+        new RabbitMqQueueOptions { Name = "orders.invalid", Durable = true }
+    ]
+};
+
+// Declare topology without publishing
+await client.DeclareAsync(topology);
+```
 
 ## Advanced topology
 
@@ -264,6 +352,25 @@ var connection = new RabbitMqConnectionOptions
     RequestedConnectionTimeout = TimeSpan.FromSeconds(15),
     NetworkRecoveryInterval = TimeSpan.FromSeconds(5)
 };
+```
+
+## Client caching
+
+`RabbitMqClientCache` provides thread-safe caching and reuse of `RabbitMqClient` instances keyed by broker URI or endpoint (`HostName:Port/VirtualHost`), avoiding duplicate connection management overhead when connecting dynamically across multiple services:
+
+```csharp
+await using var cache = new RabbitMqClientCache();
+
+// Resolve or create a client from connection options
+var client1 = cache.GetOrCreate(new RabbitMqConnectionOptions
+{
+    HostName = "rabbit-cluster",
+    Port = 5672,
+    VirtualHost = "orders"
+});
+
+// Or resolve directly by URI
+var client2 = cache.GetOrCreate(new Uri("amqp://guest:guest@rabbit-cluster:5672/orders"));
 ```
 
 ## Core DI usage

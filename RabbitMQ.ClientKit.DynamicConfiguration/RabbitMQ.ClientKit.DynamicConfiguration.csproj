@@ -8,8 +8,8 @@
     <RootNamespace>RabbitMQ.ClientKit.DynamicConfiguration</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>RabbitMQ.ClientKit.DynamicConfiguration</PackageId>
-    <Version>1.0.1</Version>
-    <PackageVersion>1.0.1</PackageVersion>
+    <Version>1.1.0</Version>
+    <PackageVersion>1.1.0</PackageVersion>
     <Authors>Colin Campbell</Authors>
     <PackageProjectUrl>https://github.com/HuNtR-RSA/RabbitMQ.ClientKit</PackageProjectUrl>
     <RepositoryUrl>https://github.com/HuNtR-RSA/RabbitMQ.ClientKit</RepositoryUrl>

@@ -38,7 +38,19 @@ public sealed class ReusableConsumerChannelProvider(IRabbitMqConnectionManager c
                     await state.Channel.DisposeAsync().ConfigureAwait(false);
                 }
 
-                state.Channel = await _connectionManager.CreateChannelAsync(cancellationToken).ConfigureAwait(false);
+                var options = RabbitMqChannelOptionsFactory.CreateChannelOptions(publisherConfirmationsEnabled: true);
+                var createdChannel = await _connectionManager.CreateChannelAsync(options, cancellationToken).ConfigureAwait(false);
+                createdChannel.CallbackExceptionAsync += (sender, _) =>
+                {
+                    if (ReferenceEquals(state.Channel, sender))
+                    {
+                        state.Channel = null;
+                    }
+
+                    return Task.CompletedTask;
+                };
+
+                state.Channel = createdChannel;
             }
 
             state.IsLeased = true;

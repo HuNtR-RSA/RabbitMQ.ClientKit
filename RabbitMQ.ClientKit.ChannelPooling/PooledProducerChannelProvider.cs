@@ -36,7 +36,12 @@ public sealed class PooledProducerChannelProvider : IRabbitMqProducerChannelProv
     }
 
     /// <inheritdoc />
-    public async ValueTask<IRabbitMqChannelLease> RentAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<IRabbitMqChannelLease> RentAsync
+    (
+        bool publisherConfirmationsEnabled = false,
+        TimeSpan? confirmTimeout = null,
+        CancellationToken cancellationToken = default
+    )
     {
         ThrowIfDisposed();
 
@@ -57,7 +62,8 @@ public sealed class PooledProducerChannelProvider : IRabbitMqProducerChannelProv
             {
                 try
                 {
-                    var createdChannel = await _connectionManager.CreateChannelAsync(cancellationToken).ConfigureAwait(false);
+                    var options = RabbitMqChannelOptionsFactory.CreateChannelOptions(publisherConfirmationsEnabled: true, confirmTimeout: confirmTimeout);
+                    var createdChannel = await _connectionManager.CreateChannelAsync(options, cancellationToken).ConfigureAwait(false);
                     return new PooledProducerChannelLease(this, createdChannel);
                 }
                 catch
