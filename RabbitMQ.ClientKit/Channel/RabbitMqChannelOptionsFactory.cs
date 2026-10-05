@@ -22,4 +22,17 @@ public static class RabbitMqChannelOptionsFactory
             publisherConfirmationsEnabled: publisherConfirmationsEnabled,
             publisherConfirmationTrackingEnabled: publisherConfirmationsEnabled
         );
+
+    /// <summary>
+    /// Applies post-creation channel settings required by the wrapper.
+    /// </summary>
+    public static void ConfigureChannel(IChannel channel, bool publisherConfirmationsEnabled, TimeSpan? confirmTimeout = null)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+
+        if (publisherConfirmationsEnabled)
+        {
+            channel.ContinuationTimeout = confirmTimeout ?? DefaultConfirmTimeout;
+        }
+    }
 }

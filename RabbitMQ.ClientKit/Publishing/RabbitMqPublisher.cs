@@ -13,13 +13,11 @@ namespace RabbitMQ.ClientKit.Publishing;
 public sealed class RabbitMqPublisher
 (
     IRabbitMqProducerChannelProvider producerChannelProvider,
-    IRabbitMqSerializer serializer,
-    RabbitMqTopologyInitializer topologyInitializer
+    IRabbitMqSerializer serializer
 )
 {
     private readonly IRabbitMqProducerChannelProvider _producerChannelProvider = producerChannelProvider ?? throw new ArgumentNullException(nameof(producerChannelProvider));
     private readonly IRabbitMqSerializer _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
-    private readonly RabbitMqTopologyInitializer _topologyInitializer = topologyInitializer ?? throw new ArgumentNullException(nameof(topologyInitializer));
 
     /// <summary>
     /// Publishes a payload using the supplied options.
@@ -38,7 +36,9 @@ public sealed class RabbitMqPublisher
             options.ConfirmTimeout,
             cancellationToken
         ).ConfigureAwait(false);
+        
         await InitializeTopologyAsync(lease.Channel, options, cancellationToken).ConfigureAwait(false);
+        
         await PublishCoreAsync
         (
             lease.Channel,
@@ -63,7 +63,9 @@ public sealed class RabbitMqPublisher
             options.PublisherConfirms,
             options.ConfirmTimeout,
             cancellationToken).ConfigureAwait(false);
+        
         await InitializeTopologyAsync(lease.Channel, options, cancellationToken).ConfigureAwait(false);
+        
         await PublishCoreAsync
         (
             lease.Channel,
@@ -124,11 +126,12 @@ public sealed class RabbitMqPublisher
             {
                 do
                 {
+                    var body = _serializer.Serialize(enumerator.Current);
                     attempted++;
                     await PublishCoreAsync
                     (
                         lease.Channel,
-                        _serializer.Serialize(enumerator.Current),
+                        body,
                         _serializer.ContentType,
                         options,
                         cancellationToken
@@ -141,7 +144,9 @@ public sealed class RabbitMqPublisher
             }
             catch
             {
-                return RabbitMqPublishBatchResult.Unconfirmed(attempted, confirmed);
+                return attempted == 0
+                    ? RabbitMqPublishBatchResult.NotSent
+                    : RabbitMqPublishBatchResult.Unconfirmed(attempted, confirmed);
             }
         }
     }

@@ -192,16 +192,20 @@ public sealed class ServiceCollectionExtensionsTests
                 ["RabbitMq:NamedConnections:0:ClientProvidedName"] = "billing-api",
                 ["RabbitMq:Producers:0:Name"] = "orders-created",
                 ["RabbitMq:Producers:0:Publish:QueueName"] = "orders.created",
+                ["RabbitMq:Producers:0:Publish:PublisherConfirms"] = "true",
+                ["RabbitMq:Producers:0:Publish:ConfirmTimeout"] = "00:00:15",
+                ["RabbitMq:Producers:0:Publish:Topology:Queues:0:Name"] = "orders.failed",
+                ["RabbitMq:Producers:0:Publish:Topology:Queues:1:Name"] = "orders.invalid",
                 ["RabbitMq:Producers:1:Name"] = "billing-charged",
                 ["RabbitMq:Producers:1:ConnectionName"] = "billing",
                 ["RabbitMq:Producers:1:Publish:ExchangeName"] = "billing",
                 ["RabbitMq:Producers:1:Publish:RoutingKey"] = "charged",
                 ["RabbitMq:Consumers:0:Name"] = "orders-worker",
-                ["RabbitMq:Consumers:0:Consume:QueueName"] = "orders.created",
+                ["RabbitMq:Consumers:0:Subscribe:QueueName"] = "orders.created",
                 ["RabbitMq:Consumers:1:Name"] = "billing-worker",
                 ["RabbitMq:Consumers:1:ConnectionName"] = "billing",
-                ["RabbitMq:Consumers:1:Consume:QueueName"] = "billing.charged",
-                ["RabbitMq:Consumers:1:Consume:ConsumerName"] = "billing-worker-channel"
+                ["RabbitMq:Consumers:1:Subscribe:QueueName"] = "billing.charged",
+                ["RabbitMq:Consumers:1:Subscribe:ConsumerName"] = "billing-worker-channel"
             })
             .Build();
 
@@ -221,6 +225,9 @@ public sealed class ServiceCollectionExtensionsTests
         var billingConsumer = resolver.GetRequiredConsumer("billing-worker");
 
         Assert.Equal("orders.created", registry.GetRequiredProducer("orders-created").Options.QueueName);
+        Assert.True(registry.GetRequiredProducer("orders-created").Options.PublisherConfirms);
+        Assert.Equal(TimeSpan.FromSeconds(15), registry.GetRequiredProducer("orders-created").Options.ConfirmTimeout);
+        Assert.Equal(2, registry.GetRequiredProducer("orders-created").Options.Topology?.Queues.Count);
         Assert.Equal("billing", registry.GetRequiredProducer("billing-charged").ConnectionName);
         Assert.Equal("billing-worker-channel", registry.GetRequiredConsumer("billing-worker").Options.ConsumerName);
         Assert.Same(defaultClient, defaultProducer.Client);

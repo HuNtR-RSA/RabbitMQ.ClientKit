@@ -11,14 +11,14 @@ namespace RabbitMQ.ClientKit.Consuming;
 /// <summary>
 /// Creates RabbitMQ consumer subscriptions for strongly typed message handlers.
 /// </summary>
-public sealed class RabbitMqConsumer(
+public sealed class RabbitMqConsumer
+(
     IRabbitMqConsumerChannelProvider consumerChannelProvider,
-    IRabbitMqSerializer serializer,
-    RabbitMqTopologyInitializer topologyInitializer)
+    IRabbitMqSerializer serializer
+)
 {
     private readonly IRabbitMqConsumerChannelProvider _consumerChannelProvider = consumerChannelProvider ?? throw new ArgumentNullException(nameof(consumerChannelProvider));
     private readonly IRabbitMqSerializer _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
-    private readonly RabbitMqTopologyInitializer _topologyInitializer = topologyInitializer ?? throw new ArgumentNullException(nameof(topologyInitializer));
 
     /// <summary>
     /// Subscribes to a queue and dispatches deliveries to the provided handler.
@@ -28,10 +28,12 @@ public sealed class RabbitMqConsumer(
     /// <param name="handler">The async message handler.</param>
     /// <param name="cancellationToken">The cancellation token for the subscribe operation.</param>
     /// <returns>The active consumer subscription.</returns>
-    public async Task<RabbitMqConsumerSubscription> SubscribeAsync<T>(
+    public async Task<RabbitMqConsumerSubscription> SubscribeAsync<T>
+    (
         RabbitMqConsumerOptions options,
         Func<RabbitMqReceivedMessage<T>, CancellationToken, Task<RabbitMqConsumeResult>> handler,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(handler);
@@ -39,6 +41,7 @@ public sealed class RabbitMqConsumer(
         options.Validate();
 
         var lease = await _consumerChannelProvider.RentAsync(options.ResolveConsumerName(), cancellationToken).ConfigureAwait(false);
+        
         try
         {
             var channel = lease.Channel;
@@ -57,7 +60,8 @@ public sealed class RabbitMqConsumer(
             var consumer = new AsyncEventingBasicConsumer(channel);
             consumer.ReceivedAsync += (_, args) => HandleMessageAsync(channel, args, options, handler, subscriptionCts.Token);
 
-            var consumerTag = await channel.BasicConsumeAsync(
+            var consumerTag = await channel.BasicConsumeAsync
+            (
                     options.QueueName,
                     options.AutoAck,
                     options.ConsumerTag,
@@ -65,8 +69,8 @@ public sealed class RabbitMqConsumer(
                     options.Exclusive,
                     options.Arguments,
                     consumer,
-                    cancellationToken)
-                .ConfigureAwait(false);
+                    cancellationToken
+            ).ConfigureAwait(false);
 
             return new RabbitMqConsumerSubscription(lease, channel, consumerTag, subscriptionCts);
         }
@@ -87,7 +91,9 @@ public sealed class RabbitMqConsumer(
     )
     {
         var body = args.Body.ToArray();
-        var delivery = new RabbitMqDeliveryHandle(channel, args.DeliveryTag, _serializer);
+        var delivery = options.AutoAck
+            ? null
+            : new RabbitMqDeliveryHandle(channel, args.DeliveryTag, _serializer);
         try
         {
             var payload = _serializer.Deserialize<T>(body);
@@ -101,14 +107,14 @@ public sealed class RabbitMqConsumer(
 
             var result = await handler(message, cancellationToken).ConfigureAwait(false);
 
-            if (!options.AutoAck && result.Disposition != RabbitMqConsumeDisposition.Handled && !delivery.IsSettled)
+            if (!options.AutoAck && result.Disposition != RabbitMqConsumeDisposition.Handled && !(delivery?.IsSettled ?? false))
             {
                 await ApplyConsumeResultAsync(channel, args.DeliveryTag, result, cancellationToken).ConfigureAwait(false);
             }
         }
         catch
         {
-            if (!options.AutoAck && !delivery.IsSettled && channel.IsOpen)
+            if (!options.AutoAck && !(delivery?.IsSettled ?? false) && channel.IsOpen)
             {
                 await channel.BasicNackAsync(args.DeliveryTag, false, options.RequeueOnFailure, CancellationToken.None).ConfigureAwait(false);
             }

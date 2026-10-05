@@ -26,8 +26,8 @@ public sealed class RabbitMqDynamicProducer
     /// Gets the latest producer registration.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token for the load operation.</param>
-    public ValueTask<RabbitMqProducerRegistration> GetRegistrationAsync(CancellationToken cancellationToken = default) =>
-        _runtime.GetProducerRegistrationAsync(Name, cancellationToken);
+    public ValueTask<RabbitMqProducerRegistration> GetRegistrationAsync(CancellationToken cancellationToken = default)
+        => _runtime.GetProducerRegistrationAsync(Name, cancellationToken);
 
     /// <summary>
     /// Gets the current publisher for the producer's configured connection.

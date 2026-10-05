@@ -1,6 +1,7 @@
 using RabbitMQ.Client;
 using RabbitMQ.ClientKit.Configuration;
 using RabbitMQ.ClientKit.Serialization;
+using RabbitMQ.ClientKit.Topology;
 
 namespace RabbitMQ.ClientKit.Consuming;
 
@@ -76,6 +77,8 @@ public sealed class RabbitMqDeliveryHandle
 
     private async Task PublishCoreAsync(ReadOnlyMemory<byte> body, RabbitMqPublishOptions options, CancellationToken cancellationToken)
     {
+        await InitializeTopologyAsync(options, cancellationToken).ConfigureAwait(false);
+
         var properties = options.Properties?.ToBasicProperties() ?? new BasicProperties { Persistent = true };
         if (string.IsNullOrWhiteSpace(properties.ContentType))
         {
@@ -105,6 +108,7 @@ public sealed class RabbitMqDeliveryHandle
         try
         {
             replacementAttempted = true;
+            await InitializeTopologyAsync(options, cancellationToken).ConfigureAwait(false);
             var properties = options.Properties?.ToBasicProperties() ?? new BasicProperties { Persistent = true };
             if (string.IsNullOrWhiteSpace(properties.ContentType) && !string.IsNullOrWhiteSpace(defaultContentType))
             {
@@ -152,4 +156,9 @@ public sealed class RabbitMqDeliveryHandle
             throw;
         }
     }
+
+    private Task InitializeTopologyAsync(RabbitMqPublishOptions options, CancellationToken cancellationToken)
+        => options.Topology is null
+            ? Task.CompletedTask
+            : RabbitMqTopologyInitializer.InitializeAsync(_channel, options.Topology, cancellationToken);
 }

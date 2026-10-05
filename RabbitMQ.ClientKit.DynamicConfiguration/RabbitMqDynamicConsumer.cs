@@ -56,9 +56,11 @@ public sealed class RabbitMqDynamicConsumer
     /// <typeparam name="T">The payload type.</typeparam>
     /// <param name="handler">The message handler.</param>
     /// <param name="cancellationToken">The cancellation token for the subscribe operation.</param>
-    public async Task<RabbitMqConsumerSubscription> SubscribeAsync<T>(
+    public async Task<RabbitMqConsumerSubscription> SubscribeAsync<T>
+    (
         Func<RabbitMqReceivedMessage<T>, CancellationToken, Task<RabbitMqConsumeResult>> handler,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         var registration = await GetRegistrationAsync(cancellationToken).ConfigureAwait(false);
         var consumer = await GetConsumerAsync(cancellationToken).ConfigureAwait(false);

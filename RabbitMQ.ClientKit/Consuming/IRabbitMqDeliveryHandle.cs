@@ -40,8 +40,8 @@ public interface IRabbitMqDeliveryHandle
     Task NackAsync(bool requeue = true, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Publishes a typed replacement, waits for the confirm, and only then acknowledges the original.
-    /// If the confirm never arrives the original is nacked with requeue. If the confirm landed and
+    /// Publishes a typed replacement, waits for the confirmation, and only then acknowledges the original.
+    /// If the confirmation never arrives the original is nacked with requeue. If the confirmation landed and
     /// the ack then fails, the original is not nacked, so a second copy is not created on purpose.
     /// A crash between confirm and ack can still redeliver the original while the replacement is queued;
     /// handlers must stay idempotent.
@@ -49,7 +49,7 @@ public interface IRabbitMqDeliveryHandle
     Task ReplaceAndAckAsync<T>(T message, RabbitMqPublishOptions options, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Publishes a raw replacement, waits for the confirm, and only then acknowledges the original.
+    /// Publishes a raw replacement, waits for the confirmation, and only then acknowledges the original.
     /// </summary>
     Task ReplaceAndAckAsync(ReadOnlyMemory<byte> body, RabbitMqPublishOptions options, CancellationToken cancellationToken = default);
 }

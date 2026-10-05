@@ -10,7 +10,7 @@ using RabbitMQ.ClientKit.Topology;
 namespace RabbitMQ.ClientKit;
 
 /// <summary>
-/// Provides a convenience facade over the core RabbitMQ publishing and consuming services.
+/// Provides a convenience facade over the core RabbitMQ publishing and subscription services.
 /// </summary>
 public sealed class RabbitMqClient : IAsyncDisposable
 {
@@ -33,9 +33,8 @@ public sealed class RabbitMqClient : IAsyncDisposable
         _producerChannelProvider = new TransientProducerChannelProvider(_connectionManager);
         _consumerChannelProvider = new TransientConsumerChannelProvider(_connectionManager);
 
-        var topologyInitializer = new RabbitMqTopologyInitializer();
-        Publisher = new RabbitMqPublisher(_producerChannelProvider, serializer1, topologyInitializer);
-        Consumer = new RabbitMqConsumer(_consumerChannelProvider, serializer1, topologyInitializer);
+        Publisher = new RabbitMqPublisher(_producerChannelProvider, serializer1);
+        Consumer = new RabbitMqConsumer(_consumerChannelProvider, serializer1);
         _ownsDependencies = true;
     }
 
@@ -61,9 +60,8 @@ public sealed class RabbitMqClient : IAsyncDisposable
         _producerChannelProvider = producerChannelProvider ?? throw new ArgumentNullException(nameof(producerChannelProvider));
         _consumerChannelProvider = consumerChannelProvider ?? throw new ArgumentNullException(nameof(consumerChannelProvider));
 
-        var topologyInitializer = new RabbitMqTopologyInitializer();
-        Publisher = new RabbitMqPublisher(_producerChannelProvider, serializer1, topologyInitializer);
-        Consumer = new RabbitMqConsumer(_consumerChannelProvider, serializer1, topologyInitializer);
+        Publisher = new RabbitMqPublisher(_producerChannelProvider, serializer1);
+        Consumer = new RabbitMqConsumer(_consumerChannelProvider, serializer1);
         _ownsDependencies = ownsDependencies;
     }
 
@@ -73,7 +71,7 @@ public sealed class RabbitMqClient : IAsyncDisposable
     public RabbitMqPublisher Publisher { get; }
 
     /// <summary>
-    /// Gets the consuming service.
+    /// Gets the subscription service.
     /// </summary>
     public RabbitMqConsumer Consumer { get; }
 
@@ -103,8 +101,8 @@ public sealed class RabbitMqClient : IAsyncDisposable
     /// <param name="messages">The payloads to publish.</param>
     /// <param name="options">The publish options shared by the batch.</param>
     /// <param name="cancellationToken">The cancellation token for the publish operation.</param>
-    public Task<RabbitMqPublishBatchResult> PublishBatchAsync<T>(IEnumerable<T> messages, RabbitMqPublishOptions options, CancellationToken cancellationToken = default) =>
-        Publisher.PublishBatchAsync(messages, options, cancellationToken);
+    public Task<RabbitMqPublishBatchResult> PublishBatchAsync<T>(IEnumerable<T> messages, RabbitMqPublishOptions options, CancellationToken cancellationToken = default)
+        => Publisher.PublishBatchAsync(messages, options, cancellationToken);
 
     /// <summary>
     /// Publishes multiple raw byte payloads using the configured publisher service.
@@ -135,9 +133,8 @@ public sealed class RabbitMqClient : IAsyncDisposable
     (
         RabbitMqConsumerOptions options,
         Func<RabbitMqReceivedMessage<T>, CancellationToken, Task<RabbitMqConsumeResult>> handler,
-        CancellationToken cancellationToken = default) =>
-        Consumer.SubscribeAsync(options, handler, cancellationToken
-    );
+        CancellationToken cancellationToken = default)
+        => Consumer.SubscribeAsync(options, handler, cancellationToken);
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()

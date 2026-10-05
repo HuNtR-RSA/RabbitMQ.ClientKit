@@ -20,7 +20,6 @@ public sealed class RabbitMqPublisherTests
         var lease = Substitute.For<IRabbitMqChannelLease>();
         var channel = Substitute.For<IChannel>();
         var serializer = Substitute.For<IRabbitMqSerializer>();
-        var topologyInitializer = new RabbitMqTopologyInitializer();
         var body = new ReadOnlyMemory<byte>([1, 2, 3]);
 
         lease.Channel.Returns(channel);
@@ -29,7 +28,7 @@ public sealed class RabbitMqPublisherTests
         serializer.Serialize(Arg.Any<TestMessage>()).Returns(body);
         serializer.ContentType.Returns("application/json");
 
-        var publisher = new RabbitMqPublisher(provider, serializer, topologyInitializer);
+        var publisher = new RabbitMqPublisher(provider, serializer);
 
         await publisher.PublishAsync(
             new TestMessage { Value = "hello" },
@@ -68,7 +67,6 @@ public sealed class RabbitMqPublisherTests
         var lease = Substitute.For<IRabbitMqChannelLease>();
         var channel = Substitute.For<IChannel>();
         var serializer = Substitute.For<IRabbitMqSerializer>();
-        var topologyInitializer = new RabbitMqTopologyInitializer();
         var body = new ReadOnlyMemory<byte>([9, 8, 7]);
 
         lease.Channel.Returns(channel);
@@ -79,7 +77,7 @@ public sealed class RabbitMqPublisherTests
             Arg.Any<CancellationToken>()
         ).Returns(new ValueTask<IRabbitMqChannelLease>(lease));
 
-        var publisher = new RabbitMqPublisher(provider, serializer, topologyInitializer);
+        var publisher = new RabbitMqPublisher(provider, serializer);
 
         await publisher.PublishAsync
         (
@@ -107,7 +105,7 @@ public sealed class RabbitMqPublisherTests
     {
         var provider = Substitute.For<IRabbitMqProducerChannelProvider>();
         var serializer = Substitute.For<IRabbitMqSerializer>();
-        var publisher = new RabbitMqPublisher(provider, serializer, new RabbitMqTopologyInitializer());
+        var publisher = new RabbitMqPublisher(provider, serializer);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             publisher.PublishAsync(new TestMessage(), new RabbitMqPublishOptions()));
@@ -120,7 +118,7 @@ public sealed class RabbitMqPublisherTests
     {
         var provider = Substitute.For<IRabbitMqProducerChannelProvider>();
         var serializer = Substitute.For<IRabbitMqSerializer>();
-        var publisher = new RabbitMqPublisher(provider, serializer, new RabbitMqTopologyInitializer());
+        var publisher = new RabbitMqPublisher(provider, serializer);
 
         var result = await publisher.PublishBatchAsync(Array.Empty<TestMessage>(), new RabbitMqPublishOptions
         {
@@ -146,7 +144,7 @@ public sealed class RabbitMqPublisherTests
             Arg.Any<CancellationToken>()
         ).Returns(_ => ValueTask.FromException<IRabbitMqChannelLease>(new InvalidOperationException("pool exhausted")));
 
-        var publisher = new RabbitMqPublisher(provider, serializer, new RabbitMqTopologyInitializer());
+        var publisher = new RabbitMqPublisher(provider, serializer);
 
         var result = await publisher.PublishBatchAsync
         (
@@ -178,7 +176,7 @@ public sealed class RabbitMqPublisherTests
             Arg.Any<CancellationToken>()
         ).Returns(new ValueTask<IRabbitMqChannelLease>(lease));
 
-        var publisher = new RabbitMqPublisher(provider, serializer, new RabbitMqTopologyInitializer());
+        var publisher = new RabbitMqPublisher(provider, serializer);
 
         var result = await publisher.PublishBatchAsync
         (
@@ -227,7 +225,7 @@ public sealed class RabbitMqPublisherTests
         
         serializer.Serialize(Arg.Any<TestMessage>()).Returns(body);
 
-        var publisher = new RabbitMqPublisher(provider, serializer, new RabbitMqTopologyInitializer());
+        var publisher = new RabbitMqPublisher(provider, serializer);
 
         var result = await publisher.PublishBatchAsync
         (
@@ -238,6 +236,46 @@ public sealed class RabbitMqPublisherTests
         Assert.Equal(RabbitMqPublishBatchStatus.Unconfirmed, result.Status);
         Assert.Equal(1, result.AttemptedCount);
         Assert.Equal(0, result.ConfirmedCount);
+    }
+
+    [Fact]
+    public async Task PublishBatchAsync_FirstSerializationThrows_ReturnsNotSent()
+    {
+        var provider = Substitute.For<IRabbitMqProducerChannelProvider>();
+        var lease = Substitute.For<IRabbitMqChannelLease>();
+        var channel = Substitute.For<IChannel>();
+        var serializer = Substitute.For<IRabbitMqSerializer>();
+
+        lease.Channel.Returns(channel);
+        provider.RentAsync
+        (
+            Arg.Any<bool>(),
+            Arg.Any<TimeSpan?>(),
+            Arg.Any<CancellationToken>()
+        ).Returns(new ValueTask<IRabbitMqChannelLease>(lease));
+
+        serializer.Serialize(Arg.Any<TestMessage>()).Returns(_ => throw new InvalidOperationException("serialize failed"));
+
+        var publisher = new RabbitMqPublisher(provider, serializer);
+
+        var result = await publisher.PublishBatchAsync
+        (
+            [new TestMessage { Value = "one" }],
+            new RabbitMqPublishOptions { QueueName = "orders.created" }
+        );
+
+        Assert.Equal(RabbitMqPublishBatchStatus.NotSent, result.Status);
+        Assert.Equal(0, result.AttemptedCount);
+        Assert.Equal(0, result.ConfirmedCount);
+        await channel.DidNotReceive().BasicPublishAsync
+        (
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<bool>(),
+            Arg.Any<BasicProperties>(),
+            Arg.Any<ReadOnlyMemory<byte>>(),
+            Arg.Any<CancellationToken>()
+        );
     }
 
     [Fact]
@@ -265,7 +303,7 @@ public sealed class RabbitMqPublisherTests
         serializer.Serialize(Arg.Any<TestMessage>()).Returns(body);
         serializer.ContentType.Returns("application/json");
 
-        var publisher = new RabbitMqPublisher(provider, serializer, new RabbitMqTopologyInitializer());
+        var publisher = new RabbitMqPublisher(provider, serializer);
 
         var result = await publisher.PublishBatchAsync
         (
@@ -309,7 +347,7 @@ public sealed class RabbitMqPublisherTests
             Arg.Any<CancellationToken>()
         ).Returns(new ValueTask<IRabbitMqChannelLease>(lease));
 
-        var publisher = new RabbitMqPublisher(provider, serializer, new RabbitMqTopologyInitializer());
+        var publisher = new RabbitMqPublisher(provider, serializer);
 
         var topology = new RabbitMqTopologyOptions
         {

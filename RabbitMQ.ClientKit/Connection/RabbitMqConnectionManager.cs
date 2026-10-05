@@ -24,6 +24,7 @@ public sealed class RabbitMqConnectionManager(RabbitMqConnectionOptions options)
         }
 
         await _sync.WaitAsync(cancellationToken).ConfigureAwait(false);
+        
         try
         {
             ThrowIfDisposed();

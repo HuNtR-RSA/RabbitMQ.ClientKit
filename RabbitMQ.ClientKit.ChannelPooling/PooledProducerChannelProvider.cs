@@ -11,7 +11,7 @@ namespace RabbitMQ.ClientKit.ChannelPooling;
 public sealed class PooledProducerChannelProvider : IRabbitMqProducerChannelProvider
 {
     private readonly IRabbitMqConnectionManager _connectionManager;
-    private readonly ConcurrentQueue<IChannel> _availableChannels = new();
+    private readonly ConcurrentDictionary<ChannelPoolKey, ConcurrentQueue<IChannel>> _availableChannels = new();
     private readonly SemaphoreSlim _availabilitySignal = new(0);
     private readonly int _poolSize;
     private int _createdChannels;
@@ -44,14 +44,16 @@ public sealed class PooledProducerChannelProvider : IRabbitMqProducerChannelProv
     )
     {
         ThrowIfDisposed();
+        var poolKey = ChannelPoolKey.Create(publisherConfirmationsEnabled, confirmTimeout);
 
         while (true)
         {
-            while (_availableChannels.TryDequeue(out var channel))
+            var availableChannels = _availableChannels.GetOrAdd(poolKey, static _ => new ConcurrentQueue<IChannel>());
+            while (availableChannels.TryDequeue(out var channel))
             {
                 if (channel.IsOpen)
                 {
-                    return new PooledProducerChannelLease(this, channel);
+                    return new PooledProducerChannelLease(this, channel, poolKey);
                 }
 
                 Interlocked.Decrement(ref _createdChannels);
@@ -62,15 +64,21 @@ public sealed class PooledProducerChannelProvider : IRabbitMqProducerChannelProv
             {
                 try
                 {
-                    var options = RabbitMqChannelOptionsFactory.CreateChannelOptions(publisherConfirmationsEnabled: true, confirmTimeout: confirmTimeout);
+                    var options = RabbitMqChannelOptionsFactory.CreateChannelOptions(publisherConfirmationsEnabled, confirmTimeout);
                     var createdChannel = await _connectionManager.CreateChannelAsync(options, cancellationToken).ConfigureAwait(false);
-                    return new PooledProducerChannelLease(this, createdChannel);
+                    RabbitMqChannelOptionsFactory.ConfigureChannel(createdChannel, publisherConfirmationsEnabled, confirmTimeout);
+                    return new PooledProducerChannelLease(this, createdChannel, poolKey);
                 }
                 catch
                 {
                     Interlocked.Decrement(ref _createdChannels);
                     throw;
                 }
+            }
+
+            if (await TryReclaimChannelSlotAsync(poolKey).ConfigureAwait(false))
+            {
+                continue;
             }
 
             await _availabilitySignal.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -89,13 +97,16 @@ public sealed class PooledProducerChannelProvider : IRabbitMqProducerChannelProv
         _disposed = true;
         _availabilitySignal.Release(_poolSize);
 
-        while (_availableChannels.TryDequeue(out var channel))
+        foreach (var queue in _availableChannels.Values)
         {
-            await channel.DisposeAsync().ConfigureAwait(false);
+            while (queue.TryDequeue(out var channel))
+            {
+                await channel.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 
-    private async ValueTask ReturnAsync(IChannel channel)
+    private async ValueTask ReturnAsync(IChannel channel, ChannelPoolKey poolKey)
     {
         if (_disposed || !channel.IsOpen)
         {
@@ -104,7 +115,8 @@ public sealed class PooledProducerChannelProvider : IRabbitMqProducerChannelProv
             return;
         }
 
-        _availableChannels.Enqueue(channel);
+        var availableChannels = _availableChannels.GetOrAdd(poolKey, static _ => new ConcurrentQueue<IChannel>());
+        availableChannels.Enqueue(channel);
         _availabilitySignal.Release();
     }
 
@@ -125,17 +137,48 @@ public sealed class PooledProducerChannelProvider : IRabbitMqProducerChannelProv
         }
     }
 
-    private void ThrowIfDisposed()
+    private async ValueTask<bool> TryReclaimChannelSlotAsync(ChannelPoolKey requestedPoolKey)
     {
-        if (_disposed)
+        foreach (var pair in _availableChannels)
         {
-            throw new ObjectDisposedException(nameof(PooledProducerChannelProvider));
+            if (pair.Key == requestedPoolKey)
+            {
+                continue;
+            }
+
+            while (pair.Value.TryDequeue(out var channel))
+            {
+                Interlocked.Decrement(ref _createdChannels);
+                await channel.DisposeAsync().ConfigureAwait(false);
+                return true;
+            }
         }
+
+        return false;
     }
 
-    private sealed class PooledProducerChannelLease(PooledProducerChannelProvider owner, IChannel channel) : IRabbitMqChannelLease
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, "The producer channel pool has already been disposed.");
+    }
+
+    private readonly record struct ChannelPoolKey(bool PublisherConfirmationsEnabled, TimeSpan? ConfirmTimeout)
+    {
+        public static ChannelPoolKey Create(bool publisherConfirmationsEnabled, TimeSpan? confirmTimeout)
+            => publisherConfirmationsEnabled
+                ? new ChannelPoolKey(true, confirmTimeout ?? RabbitMqChannelOptionsFactory.DefaultConfirmTimeout)
+                : new ChannelPoolKey(false, null);
+    }
+
+    private sealed class PooledProducerChannelLease
+    (
+        PooledProducerChannelProvider owner,
+        IChannel channel,
+        ChannelPoolKey poolKey
+    ) : IRabbitMqChannelLease
     {
         private readonly PooledProducerChannelProvider _owner = owner;
+        private readonly ChannelPoolKey _poolKey = poolKey;
         private IChannel? _channel = channel;
 
         public IChannel Channel => _channel ?? throw new ObjectDisposedException(nameof(PooledProducerChannelLease));
@@ -148,7 +191,7 @@ public sealed class PooledProducerChannelProvider : IRabbitMqProducerChannelProv
                 return;
             }
 
-            await _owner.ReturnAsync(channel).ConfigureAwait(false);
+            await _owner.ReturnAsync(channel, _poolKey).ConfigureAwait(false);
         }
     }
 }

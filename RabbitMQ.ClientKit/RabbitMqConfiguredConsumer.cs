@@ -14,10 +14,12 @@ public sealed class RabbitMqConfiguredConsumer
     /// <param name="registration">The configured consumer registration.</param>
     /// <param name="consumer">The resolved consumer.</param>
     /// <param name="client">The resolved client.</param>
-    public RabbitMqConfiguredConsumer(
+    public RabbitMqConfiguredConsumer
+    (
         RabbitMqConsumerRegistration registration,
         RabbitMqConsumer consumer,
-        RabbitMqClient client)
+        RabbitMqClient client
+    )
     {
         Registration = registration ?? throw new ArgumentNullException(nameof(registration));
         Consumer = consumer ?? throw new ArgumentNullException(nameof(consumer));
@@ -40,7 +42,7 @@ public sealed class RabbitMqConfiguredConsumer
     public string? ConnectionName => Registration.ConnectionName;
 
     /// <summary>
-    /// Gets the consume options bound for the consumer.
+    /// Gets the subscription options bound for the consumer.
     /// </summary>
     public RabbitMqConsumerOptions Options => Registration.Options;
 

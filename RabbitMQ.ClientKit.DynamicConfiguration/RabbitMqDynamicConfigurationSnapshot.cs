@@ -14,11 +14,13 @@ public sealed class RabbitMqDynamicConfigurationSnapshot
     /// <param name="namedConnections">The named connections keyed by name.</param>
     /// <param name="producers">The named producer definitions keyed by name.</param>
     /// <param name="consumers">The named consumer definitions keyed by name.</param>
-    public RabbitMqDynamicConfigurationSnapshot(
+    public RabbitMqDynamicConfigurationSnapshot
+    (
         RabbitMqConnectionOptions? defaultConnection,
         IReadOnlyDictionary<string, RabbitMqConnectionOptions>? namedConnections = null,
         IReadOnlyDictionary<string, RabbitMqProducerRegistration>? producers = null,
-        IReadOnlyDictionary<string, RabbitMqConsumerRegistration>? consumers = null)
+        IReadOnlyDictionary<string, RabbitMqConsumerRegistration>? consumers = null
+    )
     {
         DefaultConnection = defaultConnection;
         NamedConnections = namedConnections ?? new Dictionary<string, RabbitMqConnectionOptions>(StringComparer.OrdinalIgnoreCase);

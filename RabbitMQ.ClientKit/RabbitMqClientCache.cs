@@ -4,16 +4,16 @@ using RabbitMQ.ClientKit.Configuration;
 namespace RabbitMQ.ClientKit;
 
 /// <summary>
-/// Caches and reuses <see cref="RabbitMqClient"/> instances keyed by broker endpoint (host, port, and virtual host).
+/// Caches and reuses <see cref="RabbitMqClient"/> instances keyed by the full connection configuration.
 /// </summary>
 public sealed class RabbitMqClientCache : IAsyncDisposable
 {
-    private readonly ConcurrentDictionary<string, RabbitMqClient> _clients = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, RabbitMqClient> _clients = new(StringComparer.Ordinal);
     private bool _disposed;
 
     /// <summary>
     /// Gets or creates a <see cref="RabbitMqClient"/> for the specified connection options.
-    /// Keyed by host, port, and virtual host.
+    /// Keyed by the effective broker identity, credentials, and connection settings.
     /// </summary>
     /// <param name="options">The connection options describing the broker endpoint.</param>
     /// <returns>A cached or newly created <see cref="RabbitMqClient"/> instance.</returns>
@@ -36,7 +36,12 @@ public sealed class RabbitMqClientCache : IAsyncDisposable
     public RabbitMqClient GetOrCreate(string uriString)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(uriString);
-        return GetOrCreate(new Uri(uriString));
+        ThrowIfDisposed();
+
+        return GetOrCreate(new RabbitMqConnectionOptions
+        {
+            ConnectionUri = uriString
+        });
     }
 
     /// <summary>
@@ -51,7 +56,7 @@ public sealed class RabbitMqClientCache : IAsyncDisposable
 
         return GetOrCreate(new RabbitMqConnectionOptions
         {
-            ConnectionUri = uri.ToString()
+            ConnectionUri = uri.OriginalString
         });
     }
 
@@ -86,19 +91,57 @@ public sealed class RabbitMqClientCache : IAsyncDisposable
         if (!string.IsNullOrWhiteSpace(options.ConnectionUri) &&
             Uri.TryCreate(options.ConnectionUri, UriKind.Absolute, out var uri))
         {
-            return BuildKey(uri);
+            return BuildKey(
+                BuildUriIdentity(uri),
+                options.ClientProvidedName,
+                options.AutomaticRecoveryEnabled,
+                options.TopologyRecoveryEnabled,
+                options.ConsumerDispatchConcurrency,
+                options.RequestedHeartbeat,
+                options.RequestedConnectionTimeout,
+                options.NetworkRecoveryInterval);
         }
 
         var vhost = string.IsNullOrWhiteSpace(options.VirtualHost) ? "/" : options.VirtualHost;
-        return $"{options.HostName}:{options.Port}/{vhost}";
+        return BuildKey(
+            $"{options.HostName}:{options.Port}/{vhost}|{options.UserName}|{options.Password}",
+            options.ClientProvidedName,
+            options.AutomaticRecoveryEnabled,
+            options.TopologyRecoveryEnabled,
+            options.ConsumerDispatchConcurrency,
+            options.RequestedHeartbeat,
+            options.RequestedConnectionTimeout,
+            options.NetworkRecoveryInterval);
     }
 
-    private static string BuildKey(Uri uri)
+    private static string BuildUriIdentity(Uri uri)
     {
-        var host = uri.Host;
-        var port = uri.Port > 0 ? uri.Port : 5672;
-        var path = uri.AbsolutePath.Trim('/');
-        var vhost = string.IsNullOrWhiteSpace(path) ? "/" : path;
-        return $"{host}:{port}/{vhost}";
+        var port = uri.IsDefaultPort
+            ? uri.Scheme switch
+            {
+                "amqps" => 5671,
+                "amqp" => 5672,
+                _ => uri.Port
+            }
+            : uri.Port;
+
+        var virtualHost = uri.AbsolutePath.Trim('/');
+        if (string.IsNullOrWhiteSpace(virtualHost))
+        {
+            virtualHost = "/";
+        }
+
+        return $"{uri.Scheme}://{uri.UserInfo}@{uri.Host}:{port}/{virtualHost}{uri.Query}";
     }
+
+    private static string BuildKey(
+        string ConnectionIdentity,
+        string? ClientProvidedName,
+        bool AutomaticRecoveryEnabled,
+        bool TopologyRecoveryEnabled,
+        ushort ConsumerDispatchConcurrency,
+        TimeSpan RequestedHeartbeat,
+        TimeSpan RequestedConnectionTimeout,
+        TimeSpan NetworkRecoveryInterval)
+        => $"{ConnectionIdentity}|{ClientProvidedName}|{AutomaticRecoveryEnabled}|{TopologyRecoveryEnabled}|{ConsumerDispatchConcurrency}|{RequestedHeartbeat.Ticks}|{RequestedConnectionTimeout.Ticks}|{NetworkRecoveryInterval.Ticks}";
 }

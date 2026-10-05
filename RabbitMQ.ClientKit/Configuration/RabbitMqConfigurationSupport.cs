@@ -2,59 +2,58 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace RabbitMQ.ClientKit.Configuration;
 
-internal sealed class RabbitMqConfigurationRegistry : IRabbitMqConfigurationRegistry
+internal sealed class RabbitMqConfigurationRegistry
+(
+    IReadOnlyDictionary<string, RabbitMqProducerRegistration> producers,
+    IReadOnlyDictionary<string, RabbitMqConsumerRegistration> consumers
+) : IRabbitMqConfigurationRegistry
 {
-    private readonly IReadOnlyDictionary<string, RabbitMqProducerRegistration> _producers;
-    private readonly IReadOnlyDictionary<string, RabbitMqConsumerRegistration> _consumers;
-
-    public RabbitMqConfigurationRegistry(
-        IReadOnlyDictionary<string, RabbitMqProducerRegistration> producers,
-        IReadOnlyDictionary<string, RabbitMqConsumerRegistration> consumers)
-    {
-        _producers = producers ?? throw new ArgumentNullException(nameof(producers));
-        _consumers = consumers ?? throw new ArgumentNullException(nameof(consumers));
-    }
+    private readonly IReadOnlyDictionary<string, RabbitMqProducerRegistration> _producers = producers ?? throw new ArgumentNullException(nameof(producers));
+    private readonly IReadOnlyDictionary<string, RabbitMqConsumerRegistration> _consumers = consumers ?? throw new ArgumentNullException(nameof(consumers));
 
     public IReadOnlyCollection<RabbitMqProducerRegistration> Producers => [.. _producers.Values];
 
     public IReadOnlyCollection<RabbitMqConsumerRegistration> Consumers => [.. _consumers.Values];
 
-    public RabbitMqProducerRegistration GetRequiredProducer(string name) =>
-        _producers.TryGetValue(name, out var producer)
+    public RabbitMqProducerRegistration GetRequiredProducer(string name)
+        => _producers.TryGetValue(name, out var producer)
             ? producer
             : throw new KeyNotFoundException($"No RabbitMQ producer named '{name}' is configured.");
 
-    public RabbitMqConsumerRegistration GetRequiredConsumer(string name) =>
-        _consumers.TryGetValue(name, out var consumer)
+    public RabbitMqConsumerRegistration GetRequiredConsumer(string name)
+        => _consumers.TryGetValue(name, out var consumer)
             ? consumer
             : throw new KeyNotFoundException($"No RabbitMQ consumer named '{name}' is configured.");
 
-    public bool TryGetProducer(string name, out RabbitMqProducerRegistration? producer) =>
-        _producers.TryGetValue(name, out producer);
+    public bool TryGetProducer(string name, out RabbitMqProducerRegistration? producer)
+        => _producers.TryGetValue(name, out producer);
 
-    public bool TryGetConsumer(string name, out RabbitMqConsumerRegistration? consumer) =>
-        _consumers.TryGetValue(name, out consumer);
+    public bool TryGetConsumer(string name, out RabbitMqConsumerRegistration? consumer)
+        => _consumers.TryGetValue(name, out consumer);
 }
 
-internal sealed class RabbitMqEndpointResolver(
+internal sealed class RabbitMqEndpointResolver
+(
     IServiceProvider serviceProvider,
-    IRabbitMqConfigurationRegistry configurationRegistry) : IRabbitMqEndpointResolver
+    IRabbitMqConfigurationRegistry configurationRegistry
+) : IRabbitMqEndpointResolver
 {
     private readonly IServiceProvider _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     private readonly IRabbitMqConfigurationRegistry _configurationRegistry = configurationRegistry ?? throw new ArgumentNullException(nameof(configurationRegistry));
 
-    public RabbitMqClient GetClient(string? connectionName = null) =>
-        Resolve<RabbitMqClient>(connectionName);
+    public RabbitMqClient GetClient(string? connectionName = null)
+        => Resolve<RabbitMqClient>(connectionName);
 
-    public Publishing.RabbitMqPublisher GetPublisher(string? connectionName = null) =>
-        Resolve<Publishing.RabbitMqPublisher>(connectionName);
+    public Publishing.RabbitMqPublisher GetPublisher(string? connectionName = null)
+        => Resolve<Publishing.RabbitMqPublisher>(connectionName);
 
-    public Consuming.RabbitMqConsumer GetConsumer(string? connectionName = null) =>
-        Resolve<Consuming.RabbitMqConsumer>(connectionName);
+    public Consuming.RabbitMqConsumer GetConsumer(string? connectionName = null)
+        => Resolve<Consuming.RabbitMqConsumer>(connectionName);
 
     public RabbitMqConfiguredProducer GetRequiredProducer(string name)
     {
         var registration = _configurationRegistry.GetRequiredProducer(name);
+        
         return new RabbitMqConfiguredProducer(
             registration,
             GetPublisher(registration.ConnectionName),
@@ -70,8 +69,8 @@ internal sealed class RabbitMqEndpointResolver(
             GetClient(registration.ConnectionName));
     }
 
-    private T Resolve<T>(string? connectionName) where T : notnull =>
-        string.IsNullOrWhiteSpace(connectionName)
+    private T Resolve<T>(string? connectionName) where T : notnull
+        => string.IsNullOrWhiteSpace(connectionName)
             ? _serviceProvider.GetRequiredService<T>()
             : _serviceProvider.GetRequiredKeyedService<T>(connectionName);
 }
@@ -115,22 +114,23 @@ internal class RabbitMqConnectionConfiguration
 
     public TimeSpan NetworkRecoveryInterval { get; set; } = TimeSpan.FromSeconds(10);
 
-    public RabbitMqConnectionOptions ToOptions() => new()
-    {
-        ConnectionUri = ConnectionUri,
-        HostName = HostName,
-        Port = Port,
-        UserName = UserName,
-        Password = Password,
-        VirtualHost = VirtualHost,
-        ClientProvidedName = ClientProvidedName,
-        AutomaticRecoveryEnabled = AutomaticRecoveryEnabled,
-        TopologyRecoveryEnabled = TopologyRecoveryEnabled,
-        ConsumerDispatchConcurrency = ConsumerDispatchConcurrency,
-        RequestedHeartbeat = RequestedHeartbeat,
-        RequestedConnectionTimeout = RequestedConnectionTimeout,
-        NetworkRecoveryInterval = NetworkRecoveryInterval
-    };
+    public RabbitMqConnectionOptions ToOptions()
+        => new()
+        {
+            ConnectionUri = ConnectionUri,
+            HostName = HostName,
+            Port = Port,
+            UserName = UserName,
+            Password = Password,
+            VirtualHost = VirtualHost,
+            ClientProvidedName = ClientProvidedName,
+            AutomaticRecoveryEnabled = AutomaticRecoveryEnabled,
+            TopologyRecoveryEnabled = TopologyRecoveryEnabled,
+            ConsumerDispatchConcurrency = ConsumerDispatchConcurrency,
+            RequestedHeartbeat = RequestedHeartbeat,
+            RequestedConnectionTimeout = RequestedConnectionTimeout,
+            NetworkRecoveryInterval = NetworkRecoveryInterval
+        };
 }
 
 internal sealed class RabbitMqNamedConnectionConfiguration : RabbitMqConnectionConfiguration
@@ -153,7 +153,18 @@ internal sealed class RabbitMqConsumerConfiguration
 
     public string? ConnectionName { get; set; }
 
-    public RabbitMqConsumerOptionsConfiguration Consume { get; set; } = new();
+    public RabbitMqConsumerOptionsConfiguration Subscribe { get; set; } = new();
+
+    public RabbitMqConsumerOptionsConfiguration? Consume { get; set; }
+
+    public RabbitMqConsumerOptions ToOptions()
+    {
+        var options = RabbitMqConsumerOptionsConfiguration.HasConfiguredValues(Subscribe)
+            ? Subscribe
+            : Consume ?? Subscribe;
+
+        return options.ToOptions();
+    }
 }
 
 internal sealed class RabbitMqPublishOptionsConfiguration
@@ -170,15 +181,22 @@ internal sealed class RabbitMqPublishOptionsConfiguration
 
     public RabbitMqTopologyOptionsConfiguration? Topology { get; set; }
 
-    public RabbitMqPublishOptions ToOptions() => new()
-    {
-        ExchangeName = ExchangeName,
-        RoutingKey = RoutingKey,
-        QueueName = QueueName,
-        Mandatory = Mandatory,
-        Properties = Properties?.ToOptions(),
-        Topology = Topology?.ToOptions()
-    };
+    public bool PublisherConfirms { get; set; }
+
+    public TimeSpan ConfirmTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    public RabbitMqPublishOptions ToOptions()
+        => new()
+        {
+            ExchangeName = ExchangeName,
+            RoutingKey = RoutingKey,
+            QueueName = QueueName,
+            Mandatory = Mandatory,
+            Properties = Properties?.ToOptions(),
+            Topology = Topology?.ToOptions(),
+            PublisherConfirms = PublisherConfirms,
+            ConfirmTimeout = ConfirmTimeout
+        };
 }
 
 internal sealed class RabbitMqConsumerOptionsConfiguration
@@ -205,20 +223,35 @@ internal sealed class RabbitMqConsumerOptionsConfiguration
 
     public RabbitMqTopologyOptionsConfiguration? Topology { get; set; }
 
-    public RabbitMqConsumerOptions ToOptions() => new()
-    {
-        QueueName = QueueName,
-        ConsumerName = ConsumerName,
-        ConsumerTag = ConsumerTag,
-        AutoAck = AutoAck,
-        PrefetchCount = PrefetchCount,
-        GlobalPrefetch = GlobalPrefetch,
-        Exclusive = Exclusive,
-        NoLocal = NoLocal,
-        RequeueOnFailure = RequeueOnFailure,
-        Arguments = Arguments,
-        Topology = Topology?.ToOptions()
-    };
+    public RabbitMqConsumerOptions ToOptions()
+        => new()
+        {
+            QueueName = QueueName,
+            ConsumerName = ConsumerName,
+            ConsumerTag = ConsumerTag,
+            AutoAck = AutoAck,
+            PrefetchCount = PrefetchCount,
+            GlobalPrefetch = GlobalPrefetch,
+            Exclusive = Exclusive,
+            NoLocal = NoLocal,
+            RequeueOnFailure = RequeueOnFailure,
+            Arguments = Arguments,
+            Topology = Topology?.ToOptions()
+        };
+
+    public static bool HasConfiguredValues(RabbitMqConsumerOptionsConfiguration options)
+        =>
+            !string.IsNullOrWhiteSpace(options.QueueName) ||
+            !string.IsNullOrWhiteSpace(options.ConsumerName) ||
+            !string.IsNullOrWhiteSpace(options.ConsumerTag) ||
+            options.AutoAck ||
+            options.PrefetchCount != 1 ||
+            options.GlobalPrefetch ||
+            options.Exclusive ||
+            options.NoLocal ||
+            !options.RequeueOnFailure ||
+            options.Arguments is not null ||
+            options.Topology is not null;
 }
 
 internal sealed class RabbitMqTopologyOptionsConfiguration
@@ -227,12 +260,15 @@ internal sealed class RabbitMqTopologyOptionsConfiguration
 
     public RabbitMqQueueOptionsConfiguration? Queue { get; set; }
 
+    public List<RabbitMqQueueOptionsConfiguration> Queues { get; set; } = [];
+
     public List<RabbitMqQueueBindingOptionsConfiguration> Bindings { get; set; } = [];
 
     public RabbitMqTopologyOptions ToOptions() => new()
     {
         Exchange = Exchange?.ToOptions(),
         Queue = Queue?.ToOptions(),
+        Queues = [.. Queues.Select(static queue => queue.ToOptions())],
         Bindings = [.. Bindings.Select(static binding => binding.ToOptions())]
     };
 }
@@ -328,20 +364,21 @@ internal sealed class RabbitMqMessagePropertiesConfiguration
 
     public string? UserId { get; set; }
 
-    public RabbitMqMessageProperties ToOptions() => new()
-    {
-        AppId = AppId,
-        ContentEncoding = ContentEncoding,
-        ContentType = ContentType,
-        CorrelationId = CorrelationId,
-        Expiration = Expiration,
-        Headers = Headers,
-        MessageId = MessageId,
-        Persistent = Persistent,
-        Priority = Priority,
-        ReplyTo = ReplyTo,
-        TimestampUtc = TimestampUtc,
-        Type = Type,
-        UserId = UserId
-    };
+    public RabbitMqMessageProperties ToOptions()
+        => new()
+        {
+            AppId = AppId,
+            ContentEncoding = ContentEncoding,
+            ContentType = ContentType,
+            CorrelationId = CorrelationId,
+            Expiration = Expiration,
+            Headers = Headers,
+            MessageId = MessageId,
+            Persistent = Persistent,
+            Priority = Priority,
+            ReplyTo = ReplyTo,
+            TimestampUtc = TimestampUtc,
+            Type = Type,
+            UserId = UserId
+        };
 }

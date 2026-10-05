@@ -99,7 +99,7 @@ var result = await client.PublishBatchAsync(
 | Status | Meaning | Transaction / Rollback Guidance |
 |---|---|---|
 | `Confirmed` | All messages published and confirmed by the broker (or empty batch). | Safe to commit. |
-| `NotSent` | Failure occurred before any publish frame was written (e.g. channel lease or topology declaration threw). | **Safe to roll back** database transactions. |
+| `NotSent` | Failure occurred before the batch wrote its first publish frame (e.g. channel lease, topology declaration, or first-message serialization threw). | **Safe to roll back** database transactions. |
 | `Unconfirmed` | Failure occurred after at least one frame was written (e.g. publish or confirm timeout threw mid-batch). Contains `AttemptedCount` and `ConfirmedCount`. | **Do NOT roll back** transactions; broker may have received/queued messages. |
 
 ## Raw publishing
@@ -123,7 +123,7 @@ await client.PublishAsync(
 
 ## Replace-then-ack and delivery handles
 
-Consumers receive an `IRabbitMqDeliveryHandle` on `RabbitMqReceivedMessage<T>.Delivery` that enables in-place message replacement and manual acknowledgment.
+Consumers receive an `IRabbitMqDeliveryHandle` on `RabbitMqReceivedMessage<T>.Delivery` that enables in-place message replacement and manual acknowledgment. When `AutoAck = true`, `Delivery` is `null` because the broker settles the delivery before the handler runs.
 
 ```csharp
 await using var subscription = await client.SubscribeAsync<OrderMessage>(
@@ -153,6 +153,8 @@ await using var subscription = await client.SubscribeAsync<OrderMessage>(
 3. If the replacement confirm succeeds: acknowledges (`ack`) the original message. If the subsequent `ack` throws, the exception is swallowed and the original is **not** nacked (preventing duplicate replacements).
 
 When using `ReplaceAndAckAsync` or manual delivery settlement, return `RabbitMqConsumeResult.Handled` so the consumer wrapper does not double-ack or double-nack.
+
+Replacement publishes honor the supplied `RabbitMqPublishOptions`, including `Topology`, so a handler can declare the destination exchange and queues before republishing.
 
 ### Confirm-then-ack duplicate window
 
@@ -356,7 +358,7 @@ var connection = new RabbitMqConnectionOptions
 
 ## Client caching
 
-`RabbitMqClientCache` provides thread-safe caching and reuse of `RabbitMqClient` instances keyed by broker URI or endpoint (`HostName:Port/VirtualHost`), avoiding duplicate connection management overhead when connecting dynamically across multiple services:
+`RabbitMqClientCache` provides thread-safe caching and reuse of `RabbitMqClient` instances keyed by the effective connection configuration (broker identity, credentials, and connection settings), avoiding duplicate connection management overhead when connecting dynamically across multiple services:
 
 ```csharp
 await using var cache = new RabbitMqClientCache();
@@ -569,14 +571,14 @@ You can also register a default connection, named connections, and arrays of nam
     "Consumers": [
       {
         "Name": "orders-worker",
-        "Consume": {
+        "Subscribe": {
           "QueueName": "orders.created"
         }
       },
       {
         "Name": "billing-worker",
         "ConnectionName": "billing",
-        "Consume": {
+        "Subscribe": {
           "QueueName": "billing.charged",
           "ConsumerName": "billing-worker-channel"
         }
@@ -698,6 +700,8 @@ await rabbitMq.RefreshAsync(cancellationToken);
 
 Future producer calls will use the latest loaded options and connection mapping. Existing active consumer subscriptions are not hot-swapped automatically; refresh affects future `SubscribeAsync(...)` calls.
 
+For configuration binding, `Subscribe` is the preferred consumer section name. The older `Consume` section name is still accepted for compatibility.
+
 The pooling package uses:
 
 - a bounded producer-channel pool for publish-heavy workloads
@@ -789,16 +793,23 @@ The load scenarios are:
 
 ## Performance snapshot
 
-Current local baseline from `RabbitMqLoadTests.TransientAndPooledClients_ReportComparativeMetrics` with `RABBITMQ_CLIENTKIT_LOAD_MESSAGE_COUNT=50000`:
+Current local baseline from `RabbitMqLoadTests.TransientAndPooledClients_ReportComparativeMetrics` with `RABBITMQ_CLIENTKIT_LOAD_MESSAGE_COUNT=100000`:
 
 | Strategy | Publish duration | Publish throughput | End-to-end duration | End-to-end throughput | Notes |
 |---|---|---:|---|---:|---|
-| Transient/default | `1.385s` | `36,111 msg/s` | `3.226s` | `15,497 msg/s` | Windows 11, Ryzen 7 5800X, 32 GB RAM, Docker 29.8.1, `rabbitmq:3.13-management`, `dotnet test --no-build --filter "FullyQualifiedName~RabbitMqLoadTests.TransientAndPooledClients_ReportComparativeMetrics" --logger "console;verbosity=detailed"` |
-| Pooled | `0.925s` | `54,063 msg/s` | `2.963s` | `16,873 msg/s` | Same host and broker settings as transient/default |
+| Transient/default | `1.928s` | `51,876 msg/s` | `5.349s` | `18,695 msg/s` | Windows 11, Ryzen 7 5800X, 32 GB RAM, Docker 29.8.2, `rabbitmq:3.13-management`, `dotnet test --no-build --filter "Category=Load" --logger "console;verbosity=detailed"` |
+| Pooled | `1.556s` | `64,264 msg/s` | `5.567s` | `17,963 msg/s` | Same host and broker settings as transient/default |
 
-In this run, pooled throughput was about **`1.50x` faster for publish throughput** and **`1.09x` faster end-to-end** than the transient/default strategy.
+In this comparative run, pooled throughput was about **`1.24x` faster for publish throughput** and **`0.96x` of the transient/default end-to-end throughput**.
 
-Treat this as a reproducible local baseline rather than a formal benchmark: the numbers still include test-host and broker-container overhead, so absolute throughput will vary by machine and runtime configuration.
+The isolated single-scenario stress runs from the same 100k-message suite were still favorable to pooling end-to-end:
+
+| Scenario run | Publish throughput | End-to-end throughput |
+|---|---:|---:|
+| `TransientClient_PublishesAndConsumesConfiguredBurst` | `43,379 msg/s` | `17,632 msg/s` |
+| `PooledClient_PublishesAndConsumesConfiguredBurst` | `64,419 msg/s` | `18,600 msg/s` |
+
+Treat these as reproducible local baselines rather than formal benchmarks: the numbers still include test-host, test-runner, and broker-container overhead, so absolute throughput and even the relative end-to-end winner can vary by machine and run order.
 
 ## License
 

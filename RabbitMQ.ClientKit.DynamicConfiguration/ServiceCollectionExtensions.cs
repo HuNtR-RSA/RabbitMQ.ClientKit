@@ -30,15 +30,20 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The service collection to configure.</param>
     /// <param name="configurationSection">The configuration section to reload from.</param>
     /// <returns>The same service collection for chaining.</returns>
-    public static IServiceCollection AddDynamicRabbitMqClientKit(
+    public static IServiceCollection AddDynamicRabbitMqClientKit
+    (
         this IServiceCollection services,
-        IConfigurationSection configurationSection)
+        IConfigurationSection configurationSection
+    )
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configurationSection);
 
-        services.TryAddSingleton<IRabbitMqDynamicConfigurationSource>(
-            _ => new ConfigurationSectionRabbitMqDynamicConfigurationSource(configurationSection));
+        services.TryAddSingleton<IRabbitMqDynamicConfigurationSource>
+        (
+            _ => new ConfigurationSectionRabbitMqDynamicConfigurationSource(configurationSection)
+        );
+        
         return services.AddDynamicRabbitMqClientKit();
     }
 
@@ -48,14 +53,16 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The service collection to configure.</param>
     /// <param name="sourceFactory">The factory that creates the configuration source.</param>
     /// <returns>The same service collection for chaining.</returns>
-    public static IServiceCollection AddDynamicRabbitMqClientKit(
+    public static IServiceCollection AddDynamicRabbitMqClientKit
+    (
         this IServiceCollection services,
-        Func<IServiceProvider, IRabbitMqDynamicConfigurationSource> sourceFactory)
+        Func<IServiceProvider, IRabbitMqDynamicConfigurationSource> sourceFactory
+    )
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(sourceFactory);
 
-        services.TryAddSingleton<IRabbitMqDynamicConfigurationSource>(sourceFactory);
+        services.TryAddSingleton(sourceFactory);
         return services.AddDynamicRabbitMqClientKit();
     }
 
@@ -64,6 +71,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IRabbitMqDynamicClientActivator, DefaultRabbitMqDynamicClientActivator>();
         services.TryAddSingleton<RabbitMqDynamicRuntime>();
         services.TryAddSingleton<IRabbitMqDynamicEndpointResolver>(sp => sp.GetRequiredService<RabbitMqDynamicRuntime>());
+        
         return services;
     }
 }

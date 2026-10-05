@@ -137,4 +137,43 @@ public sealed class RabbitMqDeliveryHandleTests
         
         await channel.Received(1).BasicAckAsync(100, false, Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task PublishReplacementAsync_DeclaresTopologyBeforePublishing()
+    {
+        var channel = Substitute.For<IChannel>();
+        var serializer = Substitute.For<IRabbitMqSerializer>();
+        serializer.Serialize(Arg.Any<TestMessage>()).Returns(new byte[] { 1, 2, 3 });
+        serializer.ContentType.Returns("application/json");
+
+        var handle = new RabbitMqDeliveryHandle(channel, deliveryTag: 42, serializer);
+
+        await handle.PublishReplacementAsync(
+            new TestMessage { Value = "replacement" },
+            new RabbitMqPublishOptions
+            {
+                QueueName = "dest-queue",
+                Topology = new RabbitMqTopologyOptions
+                {
+                    Queue = new RabbitMqQueueOptions { Name = "dest-queue", Durable = true }
+                }
+            });
+
+        await channel.Received(1).QueueDeclareAsync(
+            "dest-queue",
+            true,
+            false,
+            false,
+            Arg.Any<IDictionary<string, object?>>(),
+            false,
+            false,
+            Arg.Any<CancellationToken>());
+        await channel.Received(1).BasicPublishAsync(
+            string.Empty,
+            "dest-queue",
+            false,
+            Arg.Any<BasicProperties>(),
+            Arg.Any<ReadOnlyMemory<byte>>(),
+            Arg.Any<CancellationToken>());
+    }
 }

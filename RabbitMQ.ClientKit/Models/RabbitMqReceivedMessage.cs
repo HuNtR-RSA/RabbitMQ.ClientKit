@@ -14,7 +14,7 @@ public sealed class RabbitMqReceivedMessage<T>
     /// <param name="payload">The deserialized payload.</param>
     /// <param name="context">The broker metadata for the delivery.</param>
     /// <param name="body">The raw message body.</param>
-    /// <param name="delivery">The delivery handle for manual acknowledgement or replace-then-ack operations.</param>
+    /// <param name="delivery">The delivery handle for manual acknowledgement or replace-then-ack operations. Null when auto-ack is enabled.</param>
     public RabbitMqReceivedMessage(T payload, RabbitMqMessageContext context, ReadOnlyMemory<byte> body, IRabbitMqDeliveryHandle? delivery = null)
     {
         Payload = payload;
@@ -40,6 +40,7 @@ public sealed class RabbitMqReceivedMessage<T>
 
     /// <summary>
     /// Gets the delivery handle for manual acknowledgement or replace-then-ack operations.
+    /// Null when the consumer was created with auto-ack enabled.
     /// </summary>
     public IRabbitMqDeliveryHandle? Delivery { get; }
 }

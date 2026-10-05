@@ -13,7 +13,8 @@ internal sealed class DefaultRabbitMqDynamicClientActivator : IRabbitMqDynamicCl
     }
 }
 
-internal sealed class RabbitMqDynamicRuntime(
+internal sealed class RabbitMqDynamicRuntime
+(
     IRabbitMqDynamicConfigurationSource configurationSource,
     IRabbitMqDynamicClientActivator clientActivator) : IRabbitMqDynamicEndpointResolver, IAsyncDisposable
 {
@@ -108,6 +109,7 @@ internal sealed class RabbitMqDynamicRuntime(
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
         var snapshot = await GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        
         return snapshot.Producers.TryGetValue(name, out var registration)
             ? registration
             : throw new KeyNotFoundException($"No dynamic RabbitMQ producer named '{name}' is configured.");
@@ -180,19 +182,27 @@ internal sealed class RabbitMqDynamicRuntime(
         var staleClients = new List<RabbitMqClient>();
         foreach (var pair in _clients.ToArray())
         {
-            if (!activeFingerprints.TryGetValue(pair.Key, out var fingerprint) || pair.Value.Fingerprint != fingerprint)
+            if
+            (
+                activeFingerprints.TryGetValue(pair.Key, out var fingerprint)
+                &&
+                pair.Value.Fingerprint == fingerprint
+            )
             {
-                staleClients.Add(pair.Value.Client);
-                _clients.Remove(pair.Key);
+                continue;
             }
+            staleClients.Add(pair.Value.Client);
+            _clients.Remove(pair.Key);
         }
 
         return staleClients;
     }
 
-    private static RabbitMqConnectionOptions ResolveConnectionOptions(
+    private static RabbitMqConnectionOptions ResolveConnectionOptions
+    (
         RabbitMqDynamicConfigurationSnapshot snapshot,
-        string? connectionName)
+        string? connectionName
+    )
     {
         if (string.IsNullOrWhiteSpace(connectionName))
         {
@@ -205,11 +215,11 @@ internal sealed class RabbitMqDynamicRuntime(
             : throw new KeyNotFoundException($"No dynamic RabbitMQ connection named '{connectionName}' is configured.");
     }
 
-    private static string NormalizeConnectionName(string? connectionName) =>
-        string.IsNullOrWhiteSpace(connectionName) ? string.Empty : connectionName;
+    private static string NormalizeConnectionName(string? connectionName)
+        => string.IsNullOrWhiteSpace(connectionName) ? string.Empty : connectionName;
 
-    private static string ComputeFingerprint(RabbitMqConnectionOptions connectionOptions) =>
-        JsonSerializer.Serialize(connectionOptions);
+    private static string ComputeFingerprint(RabbitMqConnectionOptions connectionOptions)
+        => JsonSerializer.Serialize(connectionOptions);
 
     private static async Task DisposeClientsAsync(IEnumerable<RabbitMqClient> clients)
     {
@@ -302,7 +312,7 @@ internal sealed class ConfigurationSectionRabbitMqDynamicConfigurationSource(ICo
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(consumer.Name);
 
-            var registration = new RabbitMqConsumerRegistration(consumer.Name, consumer.ConnectionName, consumer.Consume.ToOptions());
+            var registration = new RabbitMqConsumerRegistration(consumer.Name, consumer.ConnectionName, consumer.ToOptions());
             if (!consumers.TryAdd(registration.Name, registration))
             {
                 throw new InvalidOperationException($"The dynamic RabbitMQ consumer '{registration.Name}' is configured more than once.");
@@ -352,22 +362,23 @@ internal class RabbitMqConnectionModel
 
     public TimeSpan NetworkRecoveryInterval { get; set; } = TimeSpan.FromSeconds(10);
 
-    public RabbitMqConnectionOptions ToOptions() => new()
-    {
-        ConnectionUri = ConnectionUri,
-        HostName = HostName,
-        Port = Port,
-        UserName = UserName,
-        Password = Password,
-        VirtualHost = VirtualHost,
-        ClientProvidedName = ClientProvidedName,
-        AutomaticRecoveryEnabled = AutomaticRecoveryEnabled,
-        TopologyRecoveryEnabled = TopologyRecoveryEnabled,
-        ConsumerDispatchConcurrency = ConsumerDispatchConcurrency,
-        RequestedHeartbeat = RequestedHeartbeat,
-        RequestedConnectionTimeout = RequestedConnectionTimeout,
-        NetworkRecoveryInterval = NetworkRecoveryInterval
-    };
+    public RabbitMqConnectionOptions ToOptions()
+        => new()
+        {
+            ConnectionUri = ConnectionUri,
+            HostName = HostName,
+            Port = Port,
+            UserName = UserName,
+            Password = Password,
+            VirtualHost = VirtualHost,
+            ClientProvidedName = ClientProvidedName,
+            AutomaticRecoveryEnabled = AutomaticRecoveryEnabled,
+            TopologyRecoveryEnabled = TopologyRecoveryEnabled,
+            ConsumerDispatchConcurrency = ConsumerDispatchConcurrency,
+            RequestedHeartbeat = RequestedHeartbeat,
+            RequestedConnectionTimeout = RequestedConnectionTimeout,
+            NetworkRecoveryInterval = NetworkRecoveryInterval
+        };
 }
 
 internal sealed class RabbitMqNamedConnectionModel : RabbitMqConnectionModel
@@ -390,7 +401,18 @@ internal sealed class RabbitMqConsumerModel
 
     public string? ConnectionName { get; set; }
 
-    public RabbitMqConsumerOptionsModel Consume { get; set; } = new();
+    public RabbitMqConsumerOptionsModel Subscribe { get; set; } = new();
+
+    public RabbitMqConsumerOptionsModel? Consume { get; set; }
+
+    public RabbitMqConsumerOptions ToOptions()
+    {
+        var options = RabbitMqConsumerOptionsModel.HasConfiguredValues(Subscribe)
+            ? Subscribe
+            : Consume ?? Subscribe;
+
+        return options.ToOptions();
+    }
 }
 
 internal sealed class RabbitMqPublishOptionsModel
@@ -407,15 +429,22 @@ internal sealed class RabbitMqPublishOptionsModel
 
     public RabbitMqTopologyOptionsModel? Topology { get; set; }
 
-    public RabbitMqPublishOptions ToOptions() => new()
-    {
-        ExchangeName = ExchangeName,
-        RoutingKey = RoutingKey,
-        QueueName = QueueName,
-        Mandatory = Mandatory,
-        Properties = Properties?.ToOptions(),
-        Topology = Topology?.ToOptions()
-    };
+    public bool PublisherConfirms { get; set; }
+
+    public TimeSpan ConfirmTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    public RabbitMqPublishOptions ToOptions()
+        => new()
+        {
+            ExchangeName = ExchangeName,
+            RoutingKey = RoutingKey,
+            QueueName = QueueName,
+            Mandatory = Mandatory,
+            Properties = Properties?.ToOptions(),
+            Topology = Topology?.ToOptions(),
+            PublisherConfirms = PublisherConfirms,
+            ConfirmTimeout = ConfirmTimeout
+        };
 }
 
 internal sealed class RabbitMqConsumerOptionsModel
@@ -442,20 +471,35 @@ internal sealed class RabbitMqConsumerOptionsModel
 
     public RabbitMqTopologyOptionsModel? Topology { get; set; }
 
-    public RabbitMqConsumerOptions ToOptions() => new()
-    {
-        QueueName = QueueName,
-        ConsumerName = ConsumerName,
-        ConsumerTag = ConsumerTag,
-        AutoAck = AutoAck,
-        PrefetchCount = PrefetchCount,
-        GlobalPrefetch = GlobalPrefetch,
-        Exclusive = Exclusive,
-        NoLocal = NoLocal,
-        RequeueOnFailure = RequeueOnFailure,
-        Arguments = Arguments,
-        Topology = Topology?.ToOptions()
-    };
+    public RabbitMqConsumerOptions ToOptions()
+        => new()
+        {
+            QueueName = QueueName,
+            ConsumerName = ConsumerName,
+            ConsumerTag = ConsumerTag,
+            AutoAck = AutoAck,
+            PrefetchCount = PrefetchCount,
+            GlobalPrefetch = GlobalPrefetch,
+            Exclusive = Exclusive,
+            NoLocal = NoLocal,
+            RequeueOnFailure = RequeueOnFailure,
+            Arguments = Arguments,
+            Topology = Topology?.ToOptions()
+        };
+
+    public static bool HasConfiguredValues(RabbitMqConsumerOptionsModel options)
+        =>
+            !string.IsNullOrWhiteSpace(options.QueueName) ||
+            !string.IsNullOrWhiteSpace(options.ConsumerName) ||
+            !string.IsNullOrWhiteSpace(options.ConsumerTag) ||
+            options.AutoAck ||
+            options.PrefetchCount != 1 ||
+            options.GlobalPrefetch ||
+            options.Exclusive ||
+            options.NoLocal ||
+            !options.RequeueOnFailure ||
+            options.Arguments is not null ||
+            options.Topology is not null;
 }
 
 internal sealed class RabbitMqTopologyOptionsModel
@@ -464,14 +508,18 @@ internal sealed class RabbitMqTopologyOptionsModel
 
     public RabbitMqQueueOptionsModel? Queue { get; set; }
 
+    public List<RabbitMqQueueOptionsModel> Queues { get; set; } = [];
+
     public List<RabbitMqQueueBindingOptionsModel> Bindings { get; set; } = [];
 
-    public RabbitMqTopologyOptions ToOptions() => new()
-    {
-        Exchange = Exchange?.ToOptions(),
-        Queue = Queue?.ToOptions(),
-        Bindings = [.. Bindings.Select(static x => x.ToOptions())]
-    };
+    public RabbitMqTopologyOptions ToOptions()
+        => new()
+        {
+            Exchange = Exchange?.ToOptions(),
+            Queue = Queue?.ToOptions(),
+            Queues = [.. Queues.Select(static x => x.ToOptions())],
+            Bindings = [.. Bindings.Select(static x => x.ToOptions())]
+        };
 }
 
 internal sealed class RabbitMqExchangeOptionsModel
@@ -486,14 +534,15 @@ internal sealed class RabbitMqExchangeOptionsModel
 
     public Dictionary<string, object?>? Arguments { get; set; }
 
-    public RabbitMqExchangeOptions ToOptions() => new()
-    {
-        Name = Name,
-        Type = Type,
-        Durable = Durable,
-        AutoDelete = AutoDelete,
-        Arguments = Arguments
-    };
+    public RabbitMqExchangeOptions ToOptions()
+        => new()
+        {
+            Name = Name,
+            Type = Type,
+            Durable = Durable,
+            AutoDelete = AutoDelete,
+            Arguments = Arguments
+        };
 }
 
 internal sealed class RabbitMqQueueOptionsModel
@@ -508,14 +557,15 @@ internal sealed class RabbitMqQueueOptionsModel
 
     public Dictionary<string, object?>? Arguments { get; set; }
 
-    public RabbitMqQueueOptions ToOptions() => new()
-    {
-        Name = Name,
-        Durable = Durable,
-        Exclusive = Exclusive,
-        AutoDelete = AutoDelete,
-        Arguments = Arguments
-    };
+    public RabbitMqQueueOptions ToOptions()
+        => new()
+        {
+            Name = Name,
+            Durable = Durable,
+            Exclusive = Exclusive,
+            AutoDelete = AutoDelete,
+            Arguments = Arguments
+        };
 }
 
 internal sealed class RabbitMqQueueBindingOptionsModel
@@ -528,13 +578,14 @@ internal sealed class RabbitMqQueueBindingOptionsModel
 
     public Dictionary<string, object?>? Arguments { get; set; }
 
-    public RabbitMqQueueBindingOptions ToOptions() => new()
-    {
-        QueueName = QueueName,
-        ExchangeName = ExchangeName,
-        RoutingKey = RoutingKey,
-        Arguments = Arguments
-    };
+    public RabbitMqQueueBindingOptions ToOptions()
+        => new()
+        {
+            QueueName = QueueName,
+            ExchangeName = ExchangeName,
+            RoutingKey = RoutingKey,
+            Arguments = Arguments
+        };
 }
 
 internal sealed class RabbitMqMessagePropertiesModel
@@ -565,20 +616,21 @@ internal sealed class RabbitMqMessagePropertiesModel
 
     public string? UserId { get; set; }
 
-    public RabbitMqMessageProperties ToOptions() => new()
-    {
-        AppId = AppId,
-        ContentEncoding = ContentEncoding,
-        ContentType = ContentType,
-        CorrelationId = CorrelationId,
-        Expiration = Expiration,
-        Headers = Headers,
-        MessageId = MessageId,
-        Persistent = Persistent,
-        Priority = Priority,
-        ReplyTo = ReplyTo,
-        TimestampUtc = TimestampUtc,
-        Type = Type,
-        UserId = UserId
-    };
+    public RabbitMqMessageProperties ToOptions()
+        => new()
+        {
+            AppId = AppId,
+            ContentEncoding = ContentEncoding,
+            ContentType = ContentType,
+            CorrelationId = CorrelationId,
+            Expiration = Expiration,
+            Headers = Headers,
+            MessageId = MessageId,
+            Persistent = Persistent,
+            Priority = Priority,
+            ReplyTo = ReplyTo,
+            TimestampUtc = TimestampUtc,
+            Type = Type,
+            UserId = UserId
+        };
 }

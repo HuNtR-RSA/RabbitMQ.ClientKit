@@ -26,12 +26,12 @@ public sealed class RabbitMqTopologyInitializer
 
             await channel.ExchangeDeclareAsync
             (
-                    topology.Exchange.Name,
-                    topology.Exchange.Type,
-                    topology.Exchange.Durable,
-                    topology.Exchange.AutoDelete,
-                    topology.Exchange.Arguments,
-                    cancellationToken: cancellationToken
+                topology.Exchange.Name,
+                topology.Exchange.Type,
+                topology.Exchange.Durable,
+                topology.Exchange.AutoDelete,
+                topology.Exchange.Arguments,
+                cancellationToken: cancellationToken
             ).ConfigureAwait(false);
         }
 
@@ -52,11 +52,11 @@ public sealed class RabbitMqTopologyInitializer
 
             await channel.QueueBindAsync
             (
-                    binding.QueueName,
-                    binding.ExchangeName,
-                    binding.RoutingKey,
-                    binding.Arguments,
-                    cancellationToken: cancellationToken
+                binding.QueueName,
+                binding.ExchangeName,
+                binding.RoutingKey,
+                binding.Arguments,
+                cancellationToken: cancellationToken
             ).ConfigureAwait(false);
         }
     }

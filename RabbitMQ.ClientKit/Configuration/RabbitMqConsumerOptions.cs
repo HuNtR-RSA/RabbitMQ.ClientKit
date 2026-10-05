@@ -1,12 +1,12 @@
 namespace RabbitMQ.ClientKit.Configuration;
 
 /// <summary>
-/// Defines how a consumer subscription should be created.
+/// Defines how a RabbitMQ subscription should be created.
 /// </summary>
 public sealed class RabbitMqConsumerOptions
 {
     /// <summary>
-    /// Gets the queue name to consume from.
+    /// Gets the queue name to subscribe to.
     /// </summary>
     public string QueueName { get; init; } = string.Empty;
 
@@ -26,7 +26,7 @@ public sealed class RabbitMqConsumerOptions
     public bool AutoAck { get; init; }
 
     /// <summary>
-    /// Gets the prefetch count applied to the channel before consuming.
+    /// Gets the prefetch count applied to the channel before subscribing.
     /// </summary>
     public ushort PrefetchCount { get; init; } = 1;
 
@@ -56,7 +56,7 @@ public sealed class RabbitMqConsumerOptions
     public IDictionary<string, object?>? Arguments { get; init; }
 
     /// <summary>
-    /// Gets the topology that should be declared before consuming.
+    /// Gets the topology that should be declared before subscribing.
     /// </summary>
     public RabbitMqTopologyOptions? Topology { get; init; }
 

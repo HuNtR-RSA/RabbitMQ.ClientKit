@@ -1,7 +1,7 @@
 namespace RabbitMQ.ClientKit.Configuration;
 
 /// <summary>
-/// Represents a named consumer configuration loaded from application settings.
+/// Represents a named subscription configuration loaded from application settings.
 /// </summary>
 public sealed class RabbitMqConsumerRegistration
 {
@@ -10,7 +10,7 @@ public sealed class RabbitMqConsumerRegistration
     /// </summary>
     /// <param name="name">The consumer name.</param>
     /// <param name="connectionName">The optional named connection that should back the consumer.</param>
-    /// <param name="options">The consume options bound for the consumer.</param>
+    /// <param name="options">The subscription options bound for the consumer.</param>
     public RabbitMqConsumerRegistration(string name, string? connectionName, RabbitMqConsumerOptions options)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -31,7 +31,7 @@ public sealed class RabbitMqConsumerRegistration
     public string? ConnectionName { get; }
 
     /// <summary>
-    /// Gets the consume options bound for the consumer.
+    /// Gets the subscription options bound for the consumer.
     /// </summary>
     public RabbitMqConsumerOptions Options { get; }
 }
