@@ -34,7 +34,8 @@ var connection = new RabbitMqConnectionOptions
 
 await using var client = new RabbitMqClient(connection);
 
-await client.PublishAsync(
+await client.PublishAsync
+(
     new { OrderId = 42, Status = "Created" },
     new RabbitMqPublishOptions
     {
@@ -47,9 +48,11 @@ await client.PublishAsync(
                 Durable = true
             }
         }
-    });
+    }
+);
 
-await using var subscription = await client.SubscribeAsync<dynamic>(
+await using var subscription = await client.SubscribeAsync<dynamic>
+(
     new RabbitMqConsumerOptions
     {
         QueueName = "orders.created",
@@ -67,7 +70,8 @@ await using var subscription = await client.SubscribeAsync<dynamic>(
         Console.WriteLine(message.Payload);
         await Task.CompletedTask;
         return RabbitMqConsumeResult.Ack;
-    });
+    }
+);
 ```
 
 ## Batch publishing and publisher confirms
@@ -79,7 +83,8 @@ RabbitMQ.Client v7+ establishes publisher confirmations at channel creation (`Cr
 Batch publishing reuses a single leased channel and publishes each message individually while tracking confirmations.
 
 ```csharp
-var result = await client.PublishBatchAsync(
+var result = await client.PublishBatchAsync
+(
     new[]
     {
         new { OrderId = 42, Status = "Created" },
@@ -89,7 +94,8 @@ var result = await client.PublishBatchAsync(
     {
         QueueName = "orders.created",
         PublisherConfirms = true
-    });
+    }
+);
 ```
 
 ### Batch result status (NotSent vs Unconfirmed)
@@ -109,7 +115,8 @@ You can publish raw byte payloads directly without invoking serializer logic:
 ```csharp
 ReadOnlyMemory<byte> rawBytes = new byte[] { 0x01, 0x02, 0x03 };
 
-await client.PublishAsync(
+await client.PublishAsync
+(
     rawBytes,
     new RabbitMqPublishOptions
     {
@@ -118,7 +125,8 @@ await client.PublishAsync(
         {
             ContentType = "application/octet-stream"
         }
-    });
+    }
+);
 ```
 
 ## Replace-then-ack and delivery handles
@@ -126,7 +134,8 @@ await client.PublishAsync(
 Consumers receive an `IRabbitMqDeliveryHandle` on `RabbitMqReceivedMessage<T>.Delivery` that enables in-place message replacement and manual acknowledgment. When `AutoAck = true`, `Delivery` is `null` because the broker settles the delivery before the handler runs.
 
 ```csharp
-await using var subscription = await client.SubscribeAsync<OrderMessage>(
+await using var subscription = await client.SubscribeAsync<OrderMessage>
+(
     new RabbitMqConsumerOptions
     {
         QueueName = "orders.input",
@@ -142,7 +151,8 @@ await using var subscription = await client.SubscribeAsync<OrderMessage>(
             cancellationToken);
 
         return RabbitMqConsumeResult.Handled;
-    });
+    }
+);
 ```
 
 ### Replace-then-ack semantics
@@ -254,7 +264,8 @@ Unhandled exceptions are also surfaced to the caller. When `AutoAck` is `false`,
 Example with explicit prefetch and dead-letter-friendly failure behavior:
 
 ```csharp
-await using var subscription = await client.SubscribeAsync<OrderCreated>(
+await using var subscription = await client.SubscribeAsync<OrderCreated>
+(
     new RabbitMqConsumerOptions
     {
         QueueName = "orders.primary",
@@ -271,7 +282,8 @@ await using var subscription = await client.SubscribeAsync<OrderCreated>(
         }
 
         return RabbitMqConsumeResult.Ack;
-    });
+    }
+);
 ```
 
 ## Message properties and message context
@@ -294,7 +306,8 @@ Publishing supports the most commonly used AMQP properties through `RabbitMqMess
 Example:
 
 ```csharp
-await client.PublishAsync(
+await client.PublishAsync
+(
     new { OrderId = 42, Status = "Created" },
     new RabbitMqPublishOptions
     {
@@ -313,7 +326,8 @@ await client.PublishAsync(
             },
             TimestampUtc = DateTimeOffset.UtcNow
         }
-    });
+    }
+);
 ```
 
 On the consume side, each `RabbitMqReceivedMessage<T>` includes:
@@ -366,12 +380,15 @@ Clients returned from the cache are owned by the cache. Do not dispose individua
 await using var cache = new RabbitMqClientCache();
 
 // Resolve or create a client from connection options
-var client1 = cache.GetOrCreate(new RabbitMqConnectionOptions
-{
-    HostName = "rabbit-cluster",
-    Port = 5672,
-    VirtualHost = "orders"
-});
+var client1 = cache.GetOrCreate
+(
+    new RabbitMqConnectionOptions
+    {
+        HostName = "rabbit-cluster",
+        Port = 5672,
+        VirtualHost = "orders"
+    }
+);
 
 // Or resolve directly by URI
 var client2 = cache.GetOrCreate(new Uri("amqp://guest:guest@rabbit-cluster:5672/orders"));
@@ -386,21 +403,22 @@ using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.ClientKit.ChannelPooling;
 using RabbitMQ.ClientKit.Configuration;
 
-services.AddSingleton(_ => PooledRabbitMqClientFactory.CreateCache(
-    new RabbitMqChannelPoolingOptions
-    {
-        ProducerPoolSize = 16
-    }));
+services.AddSingleton(_ => PooledRabbitMqClientFactory.CreateCache
+(
+    new RabbitMqChannelPoolingOptions { ProducerPoolSize = 16 })
+);
 
 // At send time:
 var client = cache.GetOrCreate(brandUri);
-var result = await client.PublishBatchAsync(
+var result = await client.PublishBatchAsync
+(
     messages,
     new RabbitMqPublishOptions
     {
         QueueName = "orders.created",
         PublisherConfirms = true
-    });
+    }
+);
 ```
 
 Do not dispose the client returned by `GetOrCreate`; dispose the cache (typically via DI container shutdown).
@@ -416,13 +434,16 @@ using RabbitMQ.ClientKit.Configuration;
 
 var services = new ServiceCollection();
 
-services.AddRabbitMqClient(new RabbitMqConnectionOptions
-{
-    HostName = "localhost",
-    UserName = "guest",
-    Password = "guest",
-    ClientProvidedName = "orders-api"
-});
+services.AddRabbitMqClient
+(
+    new RabbitMqConnectionOptions
+    {
+        HostName = "localhost",
+        UserName = "guest",
+        Password = "guest",
+        ClientProvidedName = "orders-api"
+    }
+);
 ```
 
 You can then inject:
@@ -440,8 +461,9 @@ using RabbitMQ.ClientKit.Configuration;
 
 public sealed class OrderPublisher(RabbitMqClient rabbitMqClient)
 {
-    public Task PublishCreatedAsync(int orderId, CancellationToken cancellationToken = default) =>
-        rabbitMqClient.PublishAsync(
+    public Task PublishCreatedAsync(int orderId, CancellationToken cancellationToken = default)
+        => rabbitMqClient.PublishAsync
+        (
             new { OrderId = orderId, Status = "Created" },
             new RabbitMqPublishOptions
             {
@@ -455,7 +477,8 @@ public sealed class OrderPublisher(RabbitMqClient rabbitMqClient)
                     }
                 }
             },
-            cancellationToken);
+            cancellationToken
+        );
 }
 ```
 
@@ -465,7 +488,8 @@ public sealed class OrderPublisher(RabbitMqClient rabbitMqClient)
 using RabbitMQ.ClientKit.ChannelPooling;
 using RabbitMQ.ClientKit.Configuration;
 
-var pooledClient = PooledRabbitMqClientFactory.Create(
+var pooledClient = PooledRabbitMqClientFactory.Create
+(
     new RabbitMqConnectionOptions
     {
         HostName = "localhost",
@@ -474,7 +498,8 @@ var pooledClient = PooledRabbitMqClientFactory.Create(
     new RabbitMqChannelPoolingOptions
     {
         ProducerPoolSize = 16
-    });
+    }
+);
 ```
 
 ## Pooling DI usage
@@ -488,7 +513,8 @@ using RabbitMQ.ClientKit.ChannelPooling;
 
 var services = new ServiceCollection();
 
-services.AddPooledRabbitMqClient(
+services.AddPooledRabbitMqClient
+(
     new RabbitMqConnectionOptions
     {
         HostName = "localhost",
@@ -497,7 +523,8 @@ services.AddPooledRabbitMqClient(
     new RabbitMqChannelPoolingOptions
     {
         ProducerPoolSize = 16
-    });
+    }
+);
 ```
 
 That registration still resolves `RabbitMqClient`, `RabbitMqPublisher`, and `RabbitMqConsumer`, but the underlying channel strategy changes to:
@@ -517,15 +544,18 @@ using RabbitMQ.ClientKit.ChannelPooling;
 
 var services = new ServiceCollection();
 
-services.AddNamedRabbitMqClient(
+services.AddNamedRabbitMqClient
+(
     "orders",
     new RabbitMqConnectionOptions
     {
         HostName = "orders-rabbit",
         ClientProvidedName = "orders-api"
-    });
+    }
+);
 
-services.AddNamedPooledRabbitMqClient(
+services.AddNamedPooledRabbitMqClient
+(
     "payments",
     new RabbitMqConnectionOptions
     {
@@ -535,7 +565,8 @@ services.AddNamedPooledRabbitMqClient(
     new RabbitMqChannelPoolingOptions
     {
         ProducerPoolSize = 16
-    });
+    }
+);
 ```
 
 Resolve them either directly from the service provider:
