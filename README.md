@@ -98,7 +98,7 @@ var result = await client.PublishBatchAsync(
 
 | Status | Meaning | Transaction / Rollback Guidance |
 |---|---|---|
-| `Confirmed` | All messages published and confirmed by the broker (or empty batch). | Safe to commit. |
+| `Confirmed` | All messages were published successfully. When `PublisherConfirms = true`, this means the broker confirmed every message (or the batch was empty). Without that flag, it only means `BasicPublishAsync` completed without throwing. | Safe to commit when confirms were requested and received; otherwise treat as "publish call succeeded." |
 | `NotSent` | Failure occurred before the batch wrote its first publish frame (e.g. channel lease, topology declaration, or first-message serialization threw). | **Safe to roll back** database transactions. |
 | `Unconfirmed` | Failure occurred after at least one frame was written (e.g. publish or confirm timeout threw mid-batch). Contains `AttemptedCount` and `ConfirmedCount`. | **Do NOT roll back** transactions; broker may have received/queued messages. |
 
@@ -358,7 +358,9 @@ var connection = new RabbitMqConnectionOptions
 
 ## Client caching
 
-`RabbitMqClientCache` provides thread-safe caching and reuse of `RabbitMqClient` instances keyed by the effective connection configuration (broker identity, credentials, and connection settings), avoiding duplicate connection management overhead when connecting dynamically across multiple services:
+`RabbitMqClientCache` provides thread-safe caching and reuse of `RabbitMqClient` instances keyed by the effective connection configuration (broker identity, credentials, and connection settings), avoiding duplicate connection management overhead when connecting dynamically across multiple services.
+
+Clients returned from the cache are owned by the cache. Do not dispose individual clients; dispose the cache when finished.
 
 ```csharp
 await using var cache = new RabbitMqClientCache();
@@ -374,6 +376,34 @@ var client1 = cache.GetOrCreate(new RabbitMqConnectionOptions
 // Or resolve directly by URI
 var client2 = cache.GetOrCreate(new Uri("amqp://guest:guest@rabbit-cluster:5672/orders"));
 ```
+
+## Pooled client cache
+
+When broker URIs are only known at send time (for example a per-brand connection string), register a pooled client cache as a singleton and resolve clients by URI. Pool size and serializer are fixed on the cache instance and are not part of the cache key.
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using RabbitMQ.ClientKit.ChannelPooling;
+using RabbitMQ.ClientKit.Configuration;
+
+services.AddSingleton(_ => PooledRabbitMqClientFactory.CreateCache(
+    new RabbitMqChannelPoolingOptions
+    {
+        ProducerPoolSize = 16
+    }));
+
+// At send time:
+var client = cache.GetOrCreate(brandUri);
+var result = await client.PublishBatchAsync(
+    messages,
+    new RabbitMqPublishOptions
+    {
+        QueueName = "orders.created",
+        PublisherConfirms = true
+    });
+```
+
+Do not dispose the client returned by `GetOrCreate`; dispose the cache (typically via DI container shutdown).
 
 ## Core DI usage
 

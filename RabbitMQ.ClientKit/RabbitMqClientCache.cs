@@ -5,15 +5,35 @@ namespace RabbitMQ.ClientKit;
 
 /// <summary>
 /// Caches and reuses <see cref="RabbitMqClient"/> instances keyed by the full connection configuration.
+/// Clients returned from the cache are owned by the cache; callers must not dispose them.
+/// Dispose the cache to dispose all cached clients.
 /// </summary>
 public sealed class RabbitMqClientCache : IAsyncDisposable
 {
+    private static readonly Func<RabbitMqConnectionOptions, RabbitMqClient> DefaultClientFactory =
+        static options => new RabbitMqClient(options);
+
     private readonly ConcurrentDictionary<string, RabbitMqClient> _clients = new(StringComparer.Ordinal);
+    private readonly Func<RabbitMqConnectionOptions, RabbitMqClient> _clientFactory;
     private bool _disposed;
+
+    /// <summary>
+    /// Creates a cache that builds clients with the supplied factory, or with
+    /// <c>new RabbitMqClient(options)</c> when <paramref name="clientFactory"/> is <see langword="null"/>.
+    /// </summary>
+    /// <param name="clientFactory">
+    /// Optional factory used to create clients for new cache keys.
+    /// Pool size and serializer choices belong on the factory (or a factory closure), not on the cache key.
+    /// </param>
+    public RabbitMqClientCache(Func<RabbitMqConnectionOptions, RabbitMqClient>? clientFactory = null)
+    {
+        _clientFactory = clientFactory ?? DefaultClientFactory;
+    }
 
     /// <summary>
     /// Gets or creates a <see cref="RabbitMqClient"/> for the specified connection options.
     /// Keyed by the effective broker identity, credentials, and connection settings.
+    /// The returned client is owned by this cache; dispose the cache rather than the client.
     /// </summary>
     /// <param name="options">The connection options describing the broker endpoint.</param>
     /// <returns>A cached or newly created <see cref="RabbitMqClient"/> instance.</returns>
@@ -25,11 +45,17 @@ public sealed class RabbitMqClientCache : IAsyncDisposable
         ThrowIfDisposed();
 
         var key = BuildKey(options);
-        return _clients.GetOrAdd(key, static (_, opt) => new RabbitMqClient(opt), options);
+        return _clients.GetOrAdd
+        (
+            key,
+            static (_, state) => state.Factory(state.Options),
+            (Factory: _clientFactory, Options: options)
+        );
     }
 
     /// <summary>
     /// Gets or creates a <see cref="RabbitMqClient"/> for the specified URI string.
+    /// The returned client is owned by this cache; dispose the cache rather than the client.
     /// </summary>
     /// <param name="uriString">The connection URI string.</param>
     /// <returns>A cached or newly created <see cref="RabbitMqClient"/> instance.</returns>
@@ -46,6 +72,7 @@ public sealed class RabbitMqClientCache : IAsyncDisposable
 
     /// <summary>
     /// Gets or creates a <see cref="RabbitMqClient"/> for the specified URI.
+    /// The returned client is owned by this cache; dispose the cache rather than the client.
     /// </summary>
     /// <param name="uri">The connection URI.</param>
     /// <returns>A cached or newly created <see cref="RabbitMqClient"/> instance.</returns>
