@@ -40,4 +40,18 @@ public static class PooledRabbitMqClientFactory
             ownsDependencies: true
         );
     }
+
+    /// <summary>
+    /// Creates a <see cref="RabbitMqClientCache"/> that builds pooled clients via <see cref="Create"/>.
+    /// Pool size and serializer are fixed for the cache instance and are not part of the cache key.
+    /// </summary>
+    /// <param name="poolingOptions">The producer channel pooling options applied to every cached client.</param>
+    /// <param name="serializer">The optional payload serializer. JSON is used by default.</param>
+    /// <returns>A cache that hands out pooled <see cref="RabbitMqClient"/> instances.</returns>
+    public static RabbitMqClientCache CreateCache
+    (
+        RabbitMqChannelPoolingOptions? poolingOptions = null,
+        IRabbitMqSerializer? serializer = null
+    )
+        => new(options => Create(options, poolingOptions, serializer));
 }

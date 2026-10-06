@@ -1,0 +1,32 @@
+---
+description: Hard ban on malware patterns and MITRE ATT&CK techniques, with a mandatory security-review subagent gate on every change
+alwaysApply: true
+---
+
+# No Malicious Code
+
+Never write, generate, or run code that behaves like malware or implements a MITRE ATT&CK technique. If a task appears to need one, stop and ask the user instead of doing it.
+
+## Banned outright
+
+- Masquerading (T1036). No binaries, scripts, services, or tasks named, placed, or renamed to look like something else. No impersonating system or trusted executables.
+- Defence evasion (T1562, T1027). No disabling, excluding, or working around Defender/AV/EDR. No obfuscated, packed, encoded, or runtime-decoded payloads.
+- Discovery sweeps (T1057, T1049, T1046). No enumerating processes, sockets, or hosts you did not create. No port scanning to find a target.
+- Indiscriminate termination (T1489), process injection (T1055), and persistence via Run keys, services, or scheduled tasks (T1547, T1053).
+- Credential access and exfiltration (T1555, T1041). No reading or transmitting credentials, tokens, browser stores, or keychains.
+- Remote payload execution (T1105, T1059). No download-then-execute, no `curl | iex`, no inline encoded commands.
+
+## Do this instead
+
+- Own only what you started. Track the child process IDs you launched and stop those by handle.
+- Use fixed, declared ports and paths. Never sweep or scan to find one.
+- Keep scripts committed and readable. No generated throwaway executables.
+- Prefer real SDK tooling (`dotnet run`, `npm run`, `flutter run`) over hand-rolled process control.
+
+## Mandatory review gate
+
+Before reporting any code change as complete, launch the `security-review` subagent over the change. If it reports a malicious pattern or ATT&CK technique, revert or rewrite it. Never suppress or argue past the finding.
+
+## Per-repo propagation
+
+Every repo carries this rule committed at `.cursor/rules/no-malicious-code.mdc`. When starting work in a repo that lacks it, copy `~/.cursor/templates/repo-no-malicious-code.mdc` into place and include it in the first commit.
