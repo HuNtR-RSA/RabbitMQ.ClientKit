@@ -103,7 +103,8 @@ public static class ServiceCollectionExtensions
                 new RabbitMqConsumer
                 (
                     sp.GetRequiredKeyedService<IRabbitMqConsumerChannelProvider>(key),
-                    sp.GetRequiredKeyedService<IRabbitMqSerializer>(key)
+                    sp.GetRequiredKeyedService<IRabbitMqSerializer>(key),
+                    sp.GetRequiredKeyedService<Connection.IRabbitMqAmqp10ConnectionManager>(key)
                 )
         );
         services.AddKeyedSingleton<RabbitMqClient>
@@ -115,7 +116,8 @@ public static class ServiceCollectionExtensions
                     sp.GetRequiredKeyedService<Connection.IRabbitMqConnectionManager>(key),
                     sp.GetRequiredKeyedService<IRabbitMqSerializer>(key),
                     sp.GetRequiredKeyedService<IRabbitMqProducerChannelProvider>(key),
-                    sp.GetRequiredKeyedService<IRabbitMqConsumerChannelProvider>(key)
+                    sp.GetRequiredKeyedService<IRabbitMqConsumerChannelProvider>(key),
+                    amqp10ConnectionManager: sp.GetRequiredKeyedService<Connection.IRabbitMqAmqp10ConnectionManager>(key)
                 )
         );
 

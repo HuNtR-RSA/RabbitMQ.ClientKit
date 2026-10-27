@@ -27,6 +27,7 @@ public static class PooledRabbitMqClientFactory
         ArgumentNullException.ThrowIfNull(connectionOptions);
 
         var connectionManager = new RabbitMqConnectionManager(connectionOptions);
+        var amqp10ConnectionManager = new RabbitMqAmqp10ConnectionManager(connectionOptions);
         var resolvedSerializer = serializer ?? new JsonRabbitMqSerializer();
         IRabbitMqProducerChannelProvider producerChannelProvider = new PooledProducerChannelProvider(connectionManager, poolingOptions);
         IRabbitMqConsumerChannelProvider consumerChannelProvider = new ReusableConsumerChannelProvider(connectionManager);
@@ -37,7 +38,8 @@ public static class PooledRabbitMqClientFactory
             resolvedSerializer,
             producerChannelProvider,
             consumerChannelProvider,
-            ownsDependencies: true
+            ownsDependencies: true,
+            amqp10ConnectionManager: amqp10ConnectionManager
         );
     }
 

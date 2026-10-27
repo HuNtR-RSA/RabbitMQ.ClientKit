@@ -17,6 +17,20 @@ internal static class RabbitMqTestResources
         }
     };
 
+    public static RabbitMqTopologyOptions CreateQuorumQueueTopology(string queueName) => new()
+    {
+        Queue = new RabbitMqQueueOptions
+        {
+            Name = queueName,
+            Durable = true,
+            Arguments = new Dictionary<string, object?>
+            {
+                ["x-queue-type"] = "quorum",
+                ["x-delivery-limit"] = 10
+            }
+        }
+    };
+
     public static RabbitMqTopologyOptions CreateDirectTopology(string exchangeName, string queueName, string routingKey) => new()
     {
         Exchange = new RabbitMqExchangeOptions

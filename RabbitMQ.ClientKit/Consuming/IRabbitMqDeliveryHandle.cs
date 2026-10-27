@@ -52,4 +52,38 @@ public interface IRabbitMqDeliveryHandle
     /// Publishes a raw replacement, waits for the confirmation, and only then acknowledges the original.
     /// </summary>
     Task ReplaceAndAckAsync(ReadOnlyMemory<byte> body, RabbitMqPublishOptions options, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Settles the delivery with AMQP 1.0 <c>modified</c> and holds the same message until
+    /// <c>UtcNow + delay</c> via the <c>x-opt-delivery-time</c> annotation.
+    /// Requires an AMQP 1.0 consumer on a quorum queue (RabbitMQ 4.3+). Classic queues cannot
+    /// apply a modified annotation. The body is not republished.
+    /// When <paramref name="deliveryFailed"/> is <see langword="true"/>, the quorum delivery count is incremented.
+    /// </summary>
+    /// <param name="delay">How long the broker should wait before redelivering.</param>
+    /// <param name="deliveryFailed">
+    /// When <see langword="true"/>, RabbitMQ treats the settlement as a failed delivery and increments the delivery count.
+    /// </param>
+    /// <param name="cancellationToken">The cancellation token observed before sending the outcome.</param>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when this handle belongs to an AMQP 0-9-1 delivery.
+    /// </exception>
+    Task DelayRetryAsync(TimeSpan delay, bool deliveryFailed, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Settles the delivery with AMQP 1.0 <c>modified</c> and combines the supplied annotations
+    /// with the existing message annotations. Callers who pass <c>x-opt-delivery-time</c> must supply
+    /// an absolute UTC Unix timestamp in milliseconds as a <see cref="long"/>.
+    /// Requires an AMQP 1.0 consumer. Classic queues cannot apply a modified annotation.
+    /// When <paramref name="deliveryFailed"/> is <see langword="true"/>, the quorum delivery count is incremented.
+    /// </summary>
+    /// <param name="annotations">Message annotations to combine with the existing ones. Keys the broker understands start with <c>x-</c>.</param>
+    /// <param name="deliveryFailed">
+    /// When <see langword="true"/>, RabbitMQ treats the settlement as a failed delivery and increments the delivery count.
+    /// </param>
+    /// <param name="cancellationToken">The cancellation token observed before sending the outcome.</param>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when this handle belongs to an AMQP 0-9-1 delivery.
+    /// </exception>
+    Task RequeueAsync(IReadOnlyDictionary<string, object> annotations, bool deliveryFailed, CancellationToken cancellationToken = default);
 }

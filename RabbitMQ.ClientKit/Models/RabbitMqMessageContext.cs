@@ -11,6 +11,12 @@ public sealed class RabbitMqMessageContext
     public ulong DeliveryTag { get; init; }
 
     /// <summary>
+    /// Gets the AMQP 1.0 delivery count for quorum-queue retries.
+    /// AMQP 0-9-1 deliveries leave this at zero; use <see cref="Redelivered"/> there.
+    /// </summary>
+    public uint DeliveryCount { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether the delivery was previously redelivered.
     /// </summary>
     public bool Redelivered { get; init; }

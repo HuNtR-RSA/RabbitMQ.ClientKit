@@ -33,6 +33,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(connectionOptions);
         services.TryAddSingleton<IRabbitMqSerializer, JsonRabbitMqSerializer>();
         services.TryAddSingleton<IRabbitMqConnectionManager>(sp => new RabbitMqConnectionManager(sp.GetRequiredService<RabbitMqConnectionOptions>()));
+        services.TryAddSingleton<IRabbitMqAmqp10ConnectionManager>(sp => new RabbitMqAmqp10ConnectionManager(sp.GetRequiredService<RabbitMqConnectionOptions>()));
         services.TryAddSingleton<IRabbitMqProducerChannelProvider, TransientProducerChannelProvider>();
         services.TryAddSingleton<IRabbitMqConsumerChannelProvider, TransientConsumerChannelProvider>();
         services.TryAddSingleton<RabbitMqPublisher>
@@ -50,7 +51,8 @@ public static class ServiceCollectionExtensions
                 new RabbitMqConsumer
                 (
                     sp.GetRequiredService<IRabbitMqConsumerChannelProvider>(),
-                    sp.GetRequiredService<IRabbitMqSerializer>()
+                    sp.GetRequiredService<IRabbitMqSerializer>(),
+                    sp.GetRequiredService<IRabbitMqAmqp10ConnectionManager>()
                 )
         );
         services.TryAddSingleton<RabbitMqClient>
@@ -61,7 +63,8 @@ public static class ServiceCollectionExtensions
                     sp.GetRequiredService<IRabbitMqConnectionManager>(), 
                     sp.GetRequiredService<IRabbitMqSerializer>(), 
                     sp.GetRequiredService<IRabbitMqProducerChannelProvider>(), 
-                    sp.GetRequiredService<IRabbitMqConsumerChannelProvider>()
+                    sp.GetRequiredService<IRabbitMqConsumerChannelProvider>(),
+                    amqp10ConnectionManager: sp.GetRequiredService<IRabbitMqAmqp10ConnectionManager>()
                 )
         );
 
@@ -93,6 +96,11 @@ public static class ServiceCollectionExtensions
             connectionName,
             (sp, key) => new RabbitMqConnectionManager(sp.GetRequiredKeyedService<RabbitMqConnectionOptions>(key))
         );
+        services.AddKeyedSingleton<IRabbitMqAmqp10ConnectionManager>
+        (
+            connectionName,
+            (sp, key) => new RabbitMqAmqp10ConnectionManager(sp.GetRequiredKeyedService<RabbitMqConnectionOptions>(key))
+        );
         services.AddKeyedSingleton<IRabbitMqProducerChannelProvider>
         (
             connectionName,
@@ -120,7 +128,8 @@ public static class ServiceCollectionExtensions
                 new RabbitMqConsumer
                 (
                     sp.GetRequiredKeyedService<IRabbitMqConsumerChannelProvider>(key),
-                    sp.GetRequiredKeyedService<IRabbitMqSerializer>(key)
+                    sp.GetRequiredKeyedService<IRabbitMqSerializer>(key),
+                    sp.GetRequiredKeyedService<IRabbitMqAmqp10ConnectionManager>(key)
                 )
         );
         services.AddKeyedSingleton<RabbitMqClient>
@@ -132,7 +141,8 @@ public static class ServiceCollectionExtensions
                     sp.GetRequiredKeyedService<IRabbitMqConnectionManager>(key),
                     sp.GetRequiredKeyedService<IRabbitMqSerializer>(key),
                     sp.GetRequiredKeyedService<IRabbitMqProducerChannelProvider>(key),
-                    sp.GetRequiredKeyedService<IRabbitMqConsumerChannelProvider>(key)
+                    sp.GetRequiredKeyedService<IRabbitMqConsumerChannelProvider>(key),
+                    amqp10ConnectionManager: sp.GetRequiredKeyedService<IRabbitMqAmqp10ConnectionManager>(key)
                 )
         );
 

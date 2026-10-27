@@ -15,6 +15,7 @@ namespace RabbitMQ.ClientKit;
 public sealed class RabbitMqClient : IAsyncDisposable
 {
     private readonly IRabbitMqConnectionManager? _connectionManager;
+    private readonly IRabbitMqAmqp10ConnectionManager? _amqp10ConnectionManager;
     private readonly IRabbitMqProducerChannelProvider _producerChannelProvider;
     private readonly IRabbitMqConsumerChannelProvider _consumerChannelProvider;
     private readonly bool _ownsDependencies;
@@ -29,12 +30,13 @@ public sealed class RabbitMqClient : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(options);
 
         _connectionManager = new RabbitMqConnectionManager(options);
+        _amqp10ConnectionManager = new RabbitMqAmqp10ConnectionManager(options);
         var serializer1 = serializer ?? new JsonRabbitMqSerializer();
         _producerChannelProvider = new TransientProducerChannelProvider(_connectionManager);
         _consumerChannelProvider = new TransientConsumerChannelProvider(_connectionManager);
 
         Publisher = new RabbitMqPublisher(_producerChannelProvider, serializer1);
-        Consumer = new RabbitMqConsumer(_consumerChannelProvider, serializer1);
+        Consumer = new RabbitMqConsumer(_consumerChannelProvider, serializer1, _amqp10ConnectionManager);
         _ownsDependencies = true;
     }
 
@@ -46,22 +48,25 @@ public sealed class RabbitMqClient : IAsyncDisposable
     /// <param name="producerChannelProvider">The producer channel provider.</param>
     /// <param name="consumerChannelProvider">The consumer channel provider.</param>
     /// <param name="ownsDependencies">Whether disposing the client should also dispose the supplied dependencies.</param>
+    /// <param name="amqp10ConnectionManager">The optional AMQP 1.0 connection manager used by delayed-retry consumers.</param>
     public RabbitMqClient
     (
         IRabbitMqConnectionManager connectionManager,
         IRabbitMqSerializer serializer,
         IRabbitMqProducerChannelProvider producerChannelProvider,
         IRabbitMqConsumerChannelProvider consumerChannelProvider,
-        bool ownsDependencies = false
+        bool ownsDependencies = false,
+        IRabbitMqAmqp10ConnectionManager? amqp10ConnectionManager = null
     )
     {
         _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
         var serializer1 = serializer ?? throw new ArgumentNullException(nameof(serializer));
         _producerChannelProvider = producerChannelProvider ?? throw new ArgumentNullException(nameof(producerChannelProvider));
         _consumerChannelProvider = consumerChannelProvider ?? throw new ArgumentNullException(nameof(consumerChannelProvider));
+        _amqp10ConnectionManager = amqp10ConnectionManager;
 
         Publisher = new RabbitMqPublisher(_producerChannelProvider, serializer1);
-        Consumer = new RabbitMqConsumer(_consumerChannelProvider, serializer1);
+        Consumer = new RabbitMqConsumer(_consumerChannelProvider, serializer1, _amqp10ConnectionManager);
         _ownsDependencies = ownsDependencies;
     }
 
@@ -150,6 +155,11 @@ public sealed class RabbitMqClient : IAsyncDisposable
         if (_connectionManager is not null)
         {
             await _connectionManager.DisposeAsync().ConfigureAwait(false);
+        }
+
+        if (_amqp10ConnectionManager is not null)
+        {
+            await _amqp10ConnectionManager.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

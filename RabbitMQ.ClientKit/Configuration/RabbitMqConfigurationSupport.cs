@@ -223,6 +223,8 @@ internal sealed class RabbitMqConsumerOptionsConfiguration
 
     public RabbitMqTopologyOptionsConfiguration? Topology { get; set; }
 
+    public RabbitMqConsumerProtocol Protocol { get; set; } = RabbitMqConsumerProtocol.Amqp091;
+
     public RabbitMqConsumerOptions ToOptions()
         => new()
         {
@@ -236,7 +238,8 @@ internal sealed class RabbitMqConsumerOptionsConfiguration
             NoLocal = NoLocal,
             RequeueOnFailure = RequeueOnFailure,
             Arguments = Arguments,
-            Topology = Topology?.ToOptions()
+            Topology = Topology?.ToOptions(),
+            Protocol = Protocol
         };
 
     public static bool HasConfiguredValues(RabbitMqConsumerOptionsConfiguration options)
@@ -251,7 +254,8 @@ internal sealed class RabbitMqConsumerOptionsConfiguration
             options.NoLocal ||
             !options.RequeueOnFailure ||
             options.Arguments is not null ||
-            options.Topology is not null;
+            options.Topology is not null ||
+            options.Protocol != RabbitMqConsumerProtocol.Amqp091;
 }
 
 internal sealed class RabbitMqTopologyOptionsConfiguration

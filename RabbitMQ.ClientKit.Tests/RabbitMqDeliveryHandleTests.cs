@@ -176,4 +176,61 @@ public sealed class RabbitMqDeliveryHandleTests
             Arg.Any<ReadOnlyMemory<byte>>(),
             Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task DelayRetryAsync_OnAmqp091Handle_ThrowsProtocolMismatchWithoutNacking()
+    {
+        var channel = Substitute.For<IChannel>();
+        channel.IsOpen.Returns(true);
+        var handle = new RabbitMqDeliveryHandle(channel, deliveryTag: 42, Substitute.For<IRabbitMqSerializer>());
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => handle.DelayRetryAsync(TimeSpan.FromSeconds(2), deliveryFailed: true));
+
+        Assert.Contains("AMQP 0-9-1", ex.Message);
+        Assert.Contains("AMQP 1.0", ex.Message);
+        Assert.False(handle.IsSettled);
+        await channel.DidNotReceive().BasicNackAsync(Arg.Any<ulong>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
+        await channel.DidNotReceive().BasicAckAsync(Arg.Any<ulong>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RequeueAsync_OnAmqp091Handle_ThrowsProtocolMismatchWithoutNacking()
+    {
+        var channel = Substitute.For<IChannel>();
+        channel.IsOpen.Returns(true);
+        var handle = new RabbitMqDeliveryHandle(channel, deliveryTag: 42, Substitute.For<IRabbitMqSerializer>());
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => handle.RequeueAsync(new Dictionary<string, object> { ["x-opt-delivery-time"] = 1L }, deliveryFailed: true));
+
+        Assert.Contains("AMQP 0-9-1", ex.Message);
+        Assert.Contains("AMQP 1.0", ex.Message);
+        Assert.False(handle.IsSettled);
+        await channel.DidNotReceive().BasicNackAsync(Arg.Any<ulong>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AckAsync_AcknowledgesDeliveryTag()
+    {
+        var channel = Substitute.For<IChannel>();
+        var handle = new RabbitMqDeliveryHandle(channel, deliveryTag: 7, Substitute.For<IRabbitMqSerializer>());
+
+        await handle.AckAsync();
+
+        Assert.True(handle.IsSettled);
+        await channel.Received(1).BasicAckAsync(7, false, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task NackAsync_NegativelyAcknowledgesWithRequeueFlag()
+    {
+        var channel = Substitute.For<IChannel>();
+        var handle = new RabbitMqDeliveryHandle(channel, deliveryTag: 8, Substitute.For<IRabbitMqSerializer>());
+
+        await handle.NackAsync(requeue: false);
+
+        Assert.True(handle.IsSettled);
+        await channel.Received(1).BasicNackAsync(8, false, false, Arg.Any<CancellationToken>());
+    }
 }
