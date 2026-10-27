@@ -75,6 +75,14 @@ public sealed class RabbitMqDeliveryHandle
         return ReplaceAndAckCoreAsync(body, null, options, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public Task DelayRetryAsync(TimeSpan delay, bool deliveryFailed, CancellationToken cancellationToken = default)
+        => throw new InvalidOperationException(RabbitMqAmqpProtocolMismatch.DelayRetryOnAmqp091);
+
+    /// <inheritdoc />
+    public Task RequeueAsync(IReadOnlyDictionary<string, object> annotations, bool deliveryFailed, CancellationToken cancellationToken = default)
+        => throw new InvalidOperationException(RabbitMqAmqpProtocolMismatch.RequeueOnAmqp091);
+
     private async Task PublishCoreAsync(ReadOnlyMemory<byte> body, RabbitMqPublishOptions options, CancellationToken cancellationToken)
     {
         await InitializeTopologyAsync(options, cancellationToken).ConfigureAwait(false);

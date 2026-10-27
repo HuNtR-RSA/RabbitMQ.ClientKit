@@ -60,6 +60,13 @@ public sealed class RabbitMqConsumerOptions
     /// </summary>
     public RabbitMqTopologyOptions? Topology { get; init; }
 
+    /// <summary>
+    /// Gets the AMQP protocol used to consume from the queue.
+    /// <see cref="RabbitMqConsumerProtocol.Amqp10"/> is required for
+    /// <c>DelayRetryAsync</c> on a quorum queue. Default is AMQP 0-9-1.
+    /// </summary>
+    public RabbitMqConsumerProtocol Protocol { get; init; } = RabbitMqConsumerProtocol.Amqp091;
+
     internal string ResolveConsumerName() => string.IsNullOrWhiteSpace(ConsumerName) ? QueueName : ConsumerName;
 
     internal void Validate() => ArgumentException.ThrowIfNullOrWhiteSpace(QueueName);

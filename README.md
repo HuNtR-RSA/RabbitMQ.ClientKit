@@ -143,9 +143,14 @@ await using var subscription = await client.SubscribeAsync<OrderMessage>
     },
     async (message, cancellationToken) =>
     {
+        if (message.Delivery is not { } delivery)
+        {
+            return RabbitMqConsumeResult.Ack;
+        }
+
         var replacement = new ProcessedOrder { Id = message.Payload.Id, Status = "Processed" };
 
-        await message.Delivery!.ReplaceAndAckAsync(
+        await delivery.ReplaceAndAckAsync(
             replacement,
             new RabbitMqPublishOptions { QueueName = "orders.output" },
             cancellationToken);
@@ -165,6 +170,60 @@ await using var subscription = await client.SubscribeAsync<OrderMessage>
 When using `ReplaceAndAckAsync` or manual delivery settlement, return `RabbitMqConsumeResult.Handled` so the consumer wrapper does not double-ack or double-nack.
 
 Replacement publishes honor the supplied `RabbitMqPublishOptions`, including `Topology`, so a handler can declare the destination exchange and queues before republishing.
+
+### Delayed retry (`DelayRetryAsync`)
+
+`DelayRetryAsync` holds the **same consumed message** until a future time using RabbitMQ's AMQP 1.0 `x-opt-delivery-time` annotation. The consumer settles the original delivery with the modified outcome. The body is not republished.
+
+This requires:
+
+- RabbitMQ **4.3+**
+- an **AMQP 1.0** consumer (`RabbitMqConsumerProtocol.Amqp10`)
+- a **quorum** queue (`x-queue-type=quorum`)
+
+Classic queues cannot apply a modified annotation. `RabbitMQ.Client` 7.2.2 AMQP 0-9-1 `BasicNackAsync` cannot carry `x-opt-delivery-time`; calling `DelayRetryAsync` on an AMQP 0-9-1 delivery handle throws `InvalidOperationException`. Putting `x-opt-delivery-time` on `RabbitMqMessageProperties.Headers` and republishing creates a different message and will not hold the original.
+
+One TCP connection speaks one protocol, so AMQP 1.0 subscriptions use a dedicated connection. Quorum declaration stays on `RabbitMqQueueOptions.Arguments`. Explicit `DelayRetryAsync` does not require `x-delayed-retry-type`. Set `deliveryFailed: true` to increment the quorum delivery count.
+
+```csharp
+await using var subscription = await client.SubscribeAsync<OrderMessage>
+(
+    new RabbitMqConsumerOptions
+    {
+        QueueName = "orders.work",
+        Protocol = RabbitMqConsumerProtocol.Amqp10,
+        Topology = new RabbitMqTopologyOptions
+        {
+            Queue = new RabbitMqQueueOptions
+            {
+                Name = "orders.work",
+                Durable = true,
+                Arguments = new Dictionary<string, object?>
+                {
+                    ["x-queue-type"] = "quorum",
+                    ["x-delivery-limit"] = 10
+                }
+            }
+        }
+    },
+    async (message, cancellationToken) =>
+    {
+        if (message.Delivery is not { } delivery)
+        {
+            return RabbitMqConsumeResult.Ack;
+        }
+
+        await delivery.DelayRetryAsync(
+            TimeSpan.FromSeconds(30),
+            deliveryFailed: true,
+            cancellationToken);
+
+        return RabbitMqConsumeResult.Handled;
+    }
+);
+```
+
+Callers who need to set `x-opt-delivery-time` themselves can use `RequeueAsync` with an absolute UTC Unix-millisecond timestamp.
 
 ### Confirm-then-ack duplicate window
 
@@ -252,12 +311,14 @@ Once a queue is configured with dead-lettering, returning `RabbitMqConsumeResult
 | `RequeueOnFailure` | On unhandled exceptions, choose whether the toolkit nacks with requeue or without requeue |
 | `Arguments` | Pass broker-specific consumer arguments |
 | `Topology` | Declare the required exchange/queue/bindings before consuming |
+| `Protocol` | `Amqp091` (default) or `Amqp10`. `DelayRetryAsync` requires `Amqp10` on a quorum queue |
 
 The handler result controls normal acknowledgment flow:
 
 - `RabbitMqConsumeResult.Ack` acknowledges the delivery
 - `RabbitMqConsumeResult.Reject` rejects it without requeue
 - `RabbitMqConsumeResult.Requeue` nacks it and requeues it
+- `message.Delivery.DelayRetryAsync(...)` holds the same AMQP 1.0 quorum-queue message until `x-opt-delivery-time`
 
 Unhandled exceptions are also surfaced to the caller. When `AutoAck` is `false`, the toolkit will `BasicNack` using `RequeueOnFailure`.
 

@@ -6,29 +6,39 @@ namespace RabbitMQ.ClientKit.Consuming;
 /// <summary>
 /// Represents an active consumer subscription that can be stopped and disposed.
 /// </summary>
-public sealed class RabbitMqConsumerSubscription(
-    IRabbitMqChannelLease lease,
-    IChannel channel,
-    string consumerTag,
-    CancellationTokenSource cancellationTokenSource) : IAsyncDisposable
+public sealed class RabbitMqConsumerSubscription : IAsyncDisposable
 {
-    private readonly IRabbitMqChannelLease _lease = lease ?? throw new ArgumentNullException(nameof(lease));
-    private readonly IChannel _channel = channel ?? throw new ArgumentNullException(nameof(channel));
-    private readonly CancellationTokenSource _cancellationTokenSource = cancellationTokenSource ?? throw new ArgumentNullException(nameof(cancellationTokenSource));
+    private readonly IRabbitMqConsumerSession _session;
     private int _disposed;
 
     /// <summary>
-    /// Gets the RabbitMQ consumer tag associated with the subscription.
+    /// Initializes a subscription over an AMQP 0-9-1 channel lease.
     /// </summary>
-    private string ConsumerTag { get; } = consumerTag ?? throw new ArgumentNullException(nameof(consumerTag));
+    /// <param name="lease">The leased consumer channel.</param>
+    /// <param name="channel">The AMQP 0-9-1 channel used by the consumer.</param>
+    /// <param name="consumerTag">The RabbitMQ consumer tag.</param>
+    /// <param name="cancellationTokenSource">The subscription cancellation source.</param>
+    public RabbitMqConsumerSubscription(
+        IRabbitMqChannelLease lease,
+        IChannel channel,
+        string consumerTag,
+        CancellationTokenSource cancellationTokenSource)
+        : this(new Amqp091ConsumerSession(lease, channel, consumerTag, cancellationTokenSource))
+    {
+    }
+
+    internal RabbitMqConsumerSubscription(IRabbitMqConsumerSession session)
+    {
+        _session = session ?? throw new ArgumentNullException(nameof(session));
+    }
 
     /// <summary>
-    /// Gets a value indicating whether the subscription is active and its underlying channel is open.
+    /// Gets a value indicating whether the subscription is active and its underlying consumer is open.
     /// </summary>
-    public bool IsHealthy => Volatile.Read(ref _disposed) == 0 && _channel.IsOpen;
+    public bool IsHealthy => Volatile.Read(ref _disposed) == 0 && _session.IsHealthy;
 
     /// <summary>
-    /// Stops the subscription, cancels the consumer, and releases the leased channel.
+    /// Stops the subscription, cancels the consumer, and releases the leased resources.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token for the stop operation.</param>
     public async Task StopAsync(CancellationToken cancellationToken = default)
@@ -38,20 +48,7 @@ public sealed class RabbitMqConsumerSubscription(
             return;
         }
 
-        await _cancellationTokenSource.CancelAsync();
-
-        try
-        {
-            if (_channel.IsOpen && !string.IsNullOrWhiteSpace(ConsumerTag))
-            {
-                await _channel.BasicCancelAsync(ConsumerTag, false, cancellationToken).ConfigureAwait(false);
-            }
-        }
-        finally
-        {
-            _cancellationTokenSource.Dispose();
-            await _lease.DisposeAsync().ConfigureAwait(false);
-        }
+        await _session.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

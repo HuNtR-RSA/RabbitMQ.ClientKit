@@ -8,8 +8,8 @@
     <RootNamespace>RabbitMQ.ClientKit.ChannelPooling</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>RabbitMQ.ClientKit.ChannelPooling</PackageId>
-    <Version>1.2.0</Version>
-    <PackageVersion>1.2.0</PackageVersion>
+    <Version>1.3.0</Version>
+    <PackageVersion>1.3.0</PackageVersion>
     <Authors>Colin Campbell</Authors>
     <PackageProjectUrl>https://github.com/HuNtR-RSA/RabbitMQ.ClientKit</PackageProjectUrl>
     <RepositoryUrl>https://github.com/HuNtR-RSA/RabbitMQ.ClientKit</RepositoryUrl>
@@ -20,7 +20,7 @@
     <Description>Channel pooling and consumer channel reuse extensions for RabbitMQ.ClientKit.</Description>
     <PackageTags>rabbitmq;amqp;messaging;pooling;client;toolkit</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>Documentation refresh aligned with the core package and pooled usage guidance.</PackageReleaseNotes>
+    <PackageReleaseNotes>Ships with RabbitMQ.ClientKit 1.3.0. Pooled clients pass through the AMQP 1.0 connection used by DelayRetryAsync.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
