@@ -502,6 +502,7 @@ internal sealed class RabbitMqConsumerOptionsModel
             options.Topology is not null;
 }
 
+// ReSharper disable once ClassNeverInstantiated.Global
 internal sealed class RabbitMqTopologyOptionsModel
 {
     public RabbitMqExchangeOptionsModel? Exchange { get; set; }
@@ -522,6 +523,7 @@ internal sealed class RabbitMqTopologyOptionsModel
         };
 }
 
+// ReSharper disable once ClassNeverInstantiated.Global
 internal sealed class RabbitMqExchangeOptionsModel
 {
     public string Name { get; set; } = string.Empty;
@@ -568,6 +570,7 @@ internal sealed class RabbitMqQueueOptionsModel
         };
 }
 
+// ReSharper disable once ClassNeverInstantiated.Global
 internal sealed class RabbitMqQueueBindingOptionsModel
 {
     public string QueueName { get; set; } = string.Empty;
