@@ -5,7 +5,6 @@ using RabbitMQ.ClientKit.Consuming;
 using RabbitMQ.ClientKit.Models;
 using RabbitMQ.ClientKit.Publishing;
 using RabbitMQ.ClientKit.Serialization;
-using RabbitMQ.ClientKit.Topology;
 
 namespace RabbitMQ.ClientKit;
 
@@ -130,16 +129,16 @@ public sealed class RabbitMqClient : IAsyncDisposable
     /// Creates a consumer subscription using the configured consumer service.
     /// </summary>
     /// <typeparam name="T">The payload type.</typeparam>
-    /// <param name="options">The consumer options.</param>
     /// <param name="handler">The message handler.</param>
+    /// <param name="options">The consumer options.</param>
     /// <param name="cancellationToken">The cancellation token for the subscribe operation.</param>
     /// <returns>The active consumer subscription.</returns>
     public Task<RabbitMqConsumerSubscription> SubscribeAsync<T>
     (
-        RabbitMqConsumerOptions options,
         Func<RabbitMqReceivedMessage<T>, CancellationToken, Task<RabbitMqConsumeResult>> handler,
+        RabbitMqConsumerOptions options,
         CancellationToken cancellationToken = default)
-        => Consumer.SubscribeAsync(options, handler, cancellationToken);
+        => Consumer.SubscribeAsync(handler, options, cancellationToken);
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()

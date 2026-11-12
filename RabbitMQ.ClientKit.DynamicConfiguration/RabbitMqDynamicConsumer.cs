@@ -64,6 +64,6 @@ public sealed class RabbitMqDynamicConsumer
     {
         var registration = await GetRegistrationAsync(cancellationToken).ConfigureAwait(false);
         var consumer = await GetConsumerAsync(cancellationToken).ConfigureAwait(false);
-        return await consumer.SubscribeAsync(registration.Options, handler, cancellationToken).ConfigureAwait(false);
+        return await consumer.SubscribeAsync(handler, registration.Options, cancellationToken).ConfigureAwait(false);
     }
 }

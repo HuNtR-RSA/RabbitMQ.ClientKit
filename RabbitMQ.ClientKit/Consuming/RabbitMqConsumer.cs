@@ -1,3 +1,4 @@
+using System.Text;
 using RabbitMQ.AMQP.Client;
 using RabbitMQ.AMQP.Client.Impl;
 using RabbitMQ.Client;
@@ -29,14 +30,14 @@ public sealed class RabbitMqConsumer
     /// Subscribes to a queue and dispatches deliveries to the provided handler.
     /// </summary>
     /// <typeparam name="T">The payload type.</typeparam>
-    /// <param name="options">The consumer options describing queue behavior and topology.</param>
     /// <param name="handler">The async message handler.</param>
+    /// <param name="options">The consumer options describing queue behavior and topology.</param>
     /// <param name="cancellationToken">The cancellation token for the subscribe operation.</param>
     /// <returns>The active consumer subscription.</returns>
     public Task<RabbitMqConsumerSubscription> SubscribeAsync<T>
     (
-        RabbitMqConsumerOptions options,
         Func<RabbitMqReceivedMessage<T>, CancellationToken, Task<RabbitMqConsumeResult>> handler,
+        RabbitMqConsumerOptions options,
         CancellationToken cancellationToken = default
     )
     {
@@ -348,11 +349,11 @@ public sealed class RabbitMqConsumer
         }
         catch (InvalidCastException)
         {
-            return System.Text.Encoding.UTF8.GetBytes(message.BodyAsString());
+            return Encoding.UTF8.GetBytes(message.BodyAsString());
         }
         catch (InvalidOperationException)
         {
-            return System.Text.Encoding.UTF8.GetBytes(message.BodyAsString());
+            return Encoding.UTF8.GetBytes(message.BodyAsString());
         }
     }
 

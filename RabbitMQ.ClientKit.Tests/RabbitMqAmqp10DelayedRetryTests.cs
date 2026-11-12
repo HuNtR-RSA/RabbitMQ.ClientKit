@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using RabbitMQ.ClientKit.Configuration;
 using RabbitMQ.ClientKit.Models;
 using RabbitMQ.ClientKit.Tests.Support;
-using Xunit;
 
 namespace RabbitMQ.ClientKit.Tests;
 
@@ -29,14 +28,6 @@ public abstract class RabbitMqAmqp10DelayedRetryTestsBase(RabbitMqQuorumContaine
 
         await using var client = new RabbitMqClient(_fixture.CreateConnectionOptions("RabbitMQ.ClientKit.Amqp10.DelayRetry"));
         await using var subscription = await client.SubscribeAsync<TestMessage>(
-            new RabbitMqConsumerOptions
-            {
-                QueueName = queueName,
-                ConsumerName = queueName,
-                PrefetchCount = 1,
-                Protocol = RabbitMqConsumerProtocol.Amqp10,
-                Topology = topology
-            },
             async (message, cancellationToken) =>
             {
                 try
@@ -58,6 +49,14 @@ public abstract class RabbitMqAmqp10DelayedRetryTestsBase(RabbitMqQuorumContaine
                     handlerError.TrySetResult(ex);
                     throw;
                 }
+            },
+            new RabbitMqConsumerOptions
+            {
+                QueueName = queueName,
+                ConsumerName = queueName,
+                PrefetchCount = 1,
+                Protocol = RabbitMqConsumerProtocol.Amqp10,
+                Topology = topology
             });
 
         await client.PublishAsync(

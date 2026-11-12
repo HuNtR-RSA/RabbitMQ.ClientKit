@@ -89,13 +89,6 @@ public sealed class RabbitMqLoadTests
         var consumer = serviceProvider.GetRequiredService<RabbitMqConsumer>();
 
         await using var subscription = await consumer.SubscribeAsync<TestMessage>(
-            new RabbitMqConsumerOptions
-            {
-                QueueName = queueName,
-                ConsumerName = queueName,
-                PrefetchCount = 64,
-                Topology = topology
-            },
             (message, _) =>
             {
                 seenPayloads.TryAdd(message.Payload.Value, 0);
@@ -106,6 +99,13 @@ public sealed class RabbitMqLoadTests
                 }
 
                 return Task.FromResult(Models.RabbitMqConsumeResult.Ack);
+            },
+            new RabbitMqConsumerOptions
+            {
+                QueueName = queueName,
+                ConsumerName = queueName,
+                PrefetchCount = 64,
+                Topology = topology
             });
 
         var messages = Enumerable.Range(0, messageCount)

@@ -24,16 +24,16 @@ public sealed class RabbitMqIntegrationTests(RabbitMqContainerFixture fixture)
 
         await using var client = new RabbitMqClient(_fixture.CreateConnectionOptions("RabbitMQ.ClientKit.Integration.RoundTrip"));
         await using var subscription = await client.SubscribeAsync<TestMessage>(
+            (message, _) =>
+            {
+                receivedMessageSource.TrySetResult(message);
+                return Task.FromResult(RabbitMqConsumeResult.Ack);
+            },
             new RabbitMqConsumerOptions
             {
                 QueueName = queueName,
                 ConsumerName = queueName,
                 Topology = topology
-            },
-            (message, _) =>
-            {
-                receivedMessageSource.TrySetResult(message);
-                return Task.FromResult(RabbitMqConsumeResult.Ack);
             });
 
         await client.PublishAsync(
@@ -72,13 +72,6 @@ public sealed class RabbitMqIntegrationTests(RabbitMqContainerFixture fixture)
 
         await using var client = new RabbitMqClient(_fixture.CreateConnectionOptions("RabbitMQ.ClientKit.Integration.Requeue"));
         await using var subscription = await client.SubscribeAsync<TestMessage>(
-            new RabbitMqConsumerOptions
-            {
-                QueueName = queueName,
-                ConsumerName = queueName,
-                PrefetchCount = 1,
-                Topology = topology
-            },
             (message, _) =>
             {
                 deliveries.Enqueue(message);
@@ -90,6 +83,13 @@ public sealed class RabbitMqIntegrationTests(RabbitMqContainerFixture fixture)
 
                 secondDeliverySource.TrySetResult(true);
                 return Task.FromResult(RabbitMqConsumeResult.Ack);
+            },
+            new RabbitMqConsumerOptions
+            {
+                QueueName = queueName,
+                ConsumerName = queueName,
+                PrefetchCount = 1,
+                Topology = topology
             });
 
         await client.PublishAsync(
@@ -120,13 +120,6 @@ public sealed class RabbitMqIntegrationTests(RabbitMqContainerFixture fixture)
 
         await using var client = new RabbitMqClient(_fixture.CreateConnectionOptions("RabbitMQ.ClientKit.Integration.Reject"));
         await using var subscription = await client.SubscribeAsync<TestMessage>(
-            new RabbitMqConsumerOptions
-            {
-                QueueName = queueName,
-                ConsumerName = queueName,
-                PrefetchCount = 1,
-                Topology = topology
-            },
             (message, _) =>
             {
                 deliveries.Enqueue(message);
@@ -138,6 +131,13 @@ public sealed class RabbitMqIntegrationTests(RabbitMqContainerFixture fixture)
 
                 secondDeliverySource.TrySetResult(true);
                 return Task.FromResult(RabbitMqConsumeResult.Ack);
+            },
+            new RabbitMqConsumerOptions
+            {
+                QueueName = queueName,
+                ConsumerName = queueName,
+                PrefetchCount = 1,
+                Topology = topology
             });
 
         await client.PublishBatchAsync(
@@ -172,13 +172,6 @@ public sealed class RabbitMqIntegrationTests(RabbitMqContainerFixture fixture)
         await using var client = new RabbitMqClient(_fixture.CreateConnectionOptions("RabbitMQ.ClientKit.Integration.Batch"));
         await using var subscription = await client.SubscribeAsync<TestMessage>
         (
-            new RabbitMqConsumerOptions
-            {
-                QueueName = queueName,
-                ConsumerName = queueName,
-                PrefetchCount = 10,
-                Topology = topology
-            },
             (message, _) =>
             {
                 received.Enqueue(message.Payload.Value);
@@ -188,6 +181,13 @@ public sealed class RabbitMqIntegrationTests(RabbitMqContainerFixture fixture)
                 }
 
                 return Task.FromResult(RabbitMqConsumeResult.Ack);
+            },
+            new RabbitMqConsumerOptions
+            {
+                QueueName = queueName,
+                ConsumerName = queueName,
+                PrefetchCount = 10,
+                Topology = topology
             }
         );
 
@@ -230,27 +230,21 @@ public sealed class RabbitMqIntegrationTests(RabbitMqContainerFixture fixture)
         await using var client = new RabbitMqClient(_fixture.CreateConnectionOptions("RabbitMQ.ClientKit.Integration.ReplaceAndAck"));
         await using var destSubscription = await client.SubscribeAsync<TestMessage>
         (
+            (message, _) =>
+            {
+                destReceivedSource.TrySetResult(message);
+                return Task.FromResult(RabbitMqConsumeResult.Ack);
+            },
             new RabbitMqConsumerOptions
             {
                 QueueName = destQueue,
                 ConsumerName = destQueue,
                 Topology = topology
-            },
-            (message, _) =>
-            {
-                destReceivedSource.TrySetResult(message);
-                return Task.FromResult(RabbitMqConsumeResult.Ack);
             }
         );
 
         await using var srcSubscription = await client.SubscribeAsync<TestMessage>
         (
-            new RabbitMqConsumerOptions
-            {
-                QueueName = sourceQueue,
-                ConsumerName = sourceQueue,
-                Topology = topology
-            },
             async (message, ct) =>
             {
                 await message.Delivery!.ReplaceAndAckAsync(
@@ -262,6 +256,12 @@ public sealed class RabbitMqIntegrationTests(RabbitMqContainerFixture fixture)
                     ct);
 
                 return RabbitMqConsumeResult.Handled;
+            },
+            new RabbitMqConsumerOptions
+            {
+                QueueName = sourceQueue,
+                ConsumerName = sourceQueue,
+                Topology = topology
             }
         );
 
@@ -297,27 +297,21 @@ public sealed class RabbitMqIntegrationTests(RabbitMqContainerFixture fixture)
         await using var client = new RabbitMqClient(_fixture.CreateConnectionOptions("RabbitMQ.ClientKit.Integration.RawRepublish"));
         await using var destSubscription = await client.SubscribeAsync<TestMessage>
         (
+            (message, _) =>
+            {
+                destReceivedSource.TrySetResult(message);
+                return Task.FromResult(RabbitMqConsumeResult.Ack);
+            },
             new RabbitMqConsumerOptions
             {
                 QueueName = destQueue,
                 ConsumerName = destQueue,
                 Topology = topology
-            },
-            (message, _) =>
-            {
-                destReceivedSource.TrySetResult(message);
-                return Task.FromResult(RabbitMqConsumeResult.Ack);
             }
         );
 
         await using var srcSubscription = await client.SubscribeAsync<TestMessage>
         (
-            new RabbitMqConsumerOptions
-            {
-                QueueName = sourceQueue,
-                ConsumerName = sourceQueue,
-                Topology = topology
-            },
             async (message, ct) =>
             {
                 // Raw replace and ack with headers and raw bytes preserved
@@ -339,6 +333,12 @@ public sealed class RabbitMqIntegrationTests(RabbitMqContainerFixture fixture)
                 );
 
                 return RabbitMqConsumeResult.Handled;
+            },
+            new RabbitMqConsumerOptions
+            {
+                QueueName = sourceQueue,
+                ConsumerName = sourceQueue,
+                Topology = topology
             }
         );
 
@@ -401,15 +401,15 @@ public sealed class RabbitMqIntegrationTests(RabbitMqContainerFixture fixture)
         var completionSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var sub = await client.SubscribeAsync<TestMessage>
         (
-            new RabbitMqConsumerOptions
-            {
-                QueueName = queue2,
-                ConsumerName = queue2
-            },
             (_, _) =>
             {
                 completionSource.TrySetResult(true);
                 return Task.FromResult(RabbitMqConsumeResult.Ack);
+            },
+            new RabbitMqConsumerOptions
+            {
+                QueueName = queue2,
+                ConsumerName = queue2
             }
         );
 
