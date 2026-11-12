@@ -35,8 +35,8 @@ public sealed class RabbitMqDynamicProducer
     /// <param name="cancellationToken">The cancellation token for the load operation.</param>
     public async ValueTask<RabbitMqPublisher> GetPublisherAsync(CancellationToken cancellationToken = default)
     {
-        var registration = await GetRegistrationAsync(cancellationToken).ConfigureAwait(false);
-        var client = await _runtime.GetClientAsync(registration.ConnectionName, cancellationToken).ConfigureAwait(false);
+        var registration = await GetRegistrationAsync(cancellationToken);
+        var client = await _runtime.GetClientAsync(registration.ConnectionName, cancellationToken);
         return client.Publisher;
     }
 
@@ -46,8 +46,8 @@ public sealed class RabbitMqDynamicProducer
     /// <param name="cancellationToken">The cancellation token for the load operation.</param>
     public async ValueTask<RabbitMqClient> GetClientAsync(CancellationToken cancellationToken = default)
     {
-        var registration = await GetRegistrationAsync(cancellationToken).ConfigureAwait(false);
-        return await _runtime.GetClientAsync(registration.ConnectionName, cancellationToken).ConfigureAwait(false);
+        var registration = await GetRegistrationAsync(cancellationToken);
+        return await _runtime.GetClientAsync(registration.ConnectionName, cancellationToken);
     }
 
     /// <summary>
@@ -58,9 +58,9 @@ public sealed class RabbitMqDynamicProducer
     /// <param name="cancellationToken">The cancellation token for the publish operation.</param>
     public async Task PublishAsync<T>(T message, CancellationToken cancellationToken = default)
     {
-        var registration = await GetRegistrationAsync(cancellationToken).ConfigureAwait(false);
-        var publisher = await GetPublisherAsync(cancellationToken).ConfigureAwait(false);
-        await publisher.PublishAsync(message, registration.Options, cancellationToken).ConfigureAwait(false);
+        var registration = await GetRegistrationAsync(cancellationToken);
+        var publisher = await GetPublisherAsync(cancellationToken);
+        await publisher.PublishAsync(message, registration.Options, cancellationToken);
     }
 
     /// <summary>
@@ -72,8 +72,8 @@ public sealed class RabbitMqDynamicProducer
     /// <returns>The outcome of the batch publish operation.</returns>
     public async Task<RabbitMqPublishBatchResult> PublishBatchAsync<T>(IEnumerable<T> messages, CancellationToken cancellationToken = default)
     {
-        var registration = await GetRegistrationAsync(cancellationToken).ConfigureAwait(false);
-        var publisher = await GetPublisherAsync(cancellationToken).ConfigureAwait(false);
-        return await publisher.PublishBatchAsync(messages, registration.Options, cancellationToken).ConfigureAwait(false);
+        var registration = await GetRegistrationAsync(cancellationToken);
+        var publisher = await GetPublisherAsync(cancellationToken);
+        return await publisher.PublishBatchAsync(messages, registration.Options, cancellationToken);
     }
 }

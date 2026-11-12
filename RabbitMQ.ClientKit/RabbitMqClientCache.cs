@@ -99,7 +99,7 @@ public sealed class RabbitMqClientCache : IAsyncDisposable
 
         foreach (var client in _clients.Values)
         {
-            await client.DisposeAsync().ConfigureAwait(false);
+            await client.DisposeAsync();
         }
 
         _clients.Clear();
@@ -161,14 +161,16 @@ public sealed class RabbitMqClientCache : IAsyncDisposable
         return $"{uri.Scheme}://{uri.UserInfo}@{uri.Host}:{port}/{virtualHost}{uri.Query}";
     }
 
-    private static string BuildKey(
-        string ConnectionIdentity,
-        string? ClientProvidedName,
-        bool AutomaticRecoveryEnabled,
-        bool TopologyRecoveryEnabled,
-        ushort ConsumerDispatchConcurrency,
-        TimeSpan RequestedHeartbeat,
-        TimeSpan RequestedConnectionTimeout,
-        TimeSpan NetworkRecoveryInterval)
-        => $"{ConnectionIdentity}|{ClientProvidedName}|{AutomaticRecoveryEnabled}|{TopologyRecoveryEnabled}|{ConsumerDispatchConcurrency}|{RequestedHeartbeat.Ticks}|{RequestedConnectionTimeout.Ticks}|{NetworkRecoveryInterval.Ticks}";
+    private static string BuildKey
+    (
+        string connectionIdentity,
+        string? clientProvidedName,
+        bool automaticRecoveryEnabled,
+        bool topologyRecoveryEnabled,
+        ushort consumerDispatchConcurrency,
+        TimeSpan requestedHeartbeat,
+        TimeSpan requestedConnectionTimeout,
+        TimeSpan networkRecoveryInterval
+    )
+        => $"{connectionIdentity}|{clientProvidedName}|{automaticRecoveryEnabled}|{topologyRecoveryEnabled}|{consumerDispatchConcurrency}|{requestedHeartbeat.Ticks}|{requestedConnectionTimeout.Ticks}|{networkRecoveryInterval.Ticks}";
 }

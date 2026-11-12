@@ -25,7 +25,7 @@ public sealed class RabbitMqAmqp10ConnectionManager(RabbitMqConnectionOptions op
             return _connection;
         }
 
-        await _sync.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await _sync.WaitAsync(cancellationToken);
         try
         {
             ThrowIfDisposed();
@@ -35,10 +35,10 @@ public sealed class RabbitMqAmqp10ConnectionManager(RabbitMqConnectionOptions op
                 return _connection;
             }
 
-            await CloseConnectionAsync().ConfigureAwait(false);
+            await CloseConnectionAsync();
 
             _environment ??= AmqpEnvironment.Create(CreateConnectionSettings());
-            _connection = await _environment.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
+            _connection = await _environment.CreateConnectionAsync(cancellationToken);
             return _connection;
         }
         finally
@@ -56,14 +56,14 @@ public sealed class RabbitMqAmqp10ConnectionManager(RabbitMqConnectionOptions op
         }
 
         _disposed = true;
-        await _sync.WaitAsync().ConfigureAwait(false);
+        await _sync.WaitAsync();
         try
         {
-            await CloseConnectionAsync().ConfigureAwait(false);
+            await CloseConnectionAsync();
 
             if (_environment is not null)
             {
-                await _environment.CloseAsync().ConfigureAwait(false);
+                await _environment.CloseAsync();
                 _environment = null;
             }
         }
@@ -114,7 +114,7 @@ public sealed class RabbitMqAmqp10ConnectionManager(RabbitMqConnectionOptions op
 
         try
         {
-            await _connection.CloseAsync().ConfigureAwait(false);
+            await _connection.CloseAsync();
         }
         finally
         {

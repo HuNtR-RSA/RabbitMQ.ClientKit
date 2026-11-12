@@ -21,7 +21,7 @@ public sealed class ReusableConsumerChannelProvider(IRabbitMqConnectionManager c
         ThrowIfDisposed();
 
         var state = _channels.GetOrAdd(consumerName, static _ => new ConsumerChannelState());
-        await state.Sync.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await state.Sync.WaitAsync(cancellationToken);
         try
         {
             ThrowIfDisposed();
@@ -35,11 +35,11 @@ public sealed class ReusableConsumerChannelProvider(IRabbitMqConnectionManager c
             {
                 if (state.Channel is not null)
                 {
-                    await state.Channel.DisposeAsync().ConfigureAwait(false);
+                    await state.Channel.DisposeAsync();
                 }
 
                 var options = RabbitMqChannelOptionsFactory.CreateChannelOptions(publisherConfirmationsEnabled: true);
-                var createdChannel = await _connectionManager.CreateChannelAsync(options, cancellationToken).ConfigureAwait(false);
+                var createdChannel = await _connectionManager.CreateChannelAsync(options, cancellationToken);
                 RabbitMqChannelOptionsFactory.ConfigureChannel(createdChannel, publisherConfirmationsEnabled: true);
                 createdChannel.CallbackExceptionAsync += (sender, _) =>
                 {
@@ -76,12 +76,12 @@ public sealed class ReusableConsumerChannelProvider(IRabbitMqConnectionManager c
         foreach (var pair in _channels)
         {
             var state = pair.Value;
-            await state.Sync.WaitAsync().ConfigureAwait(false);
+            await state.Sync.WaitAsync();
             try
             {
                 if (state is { IsLeased: false, Channel: not null })
                 {
-                    await state.Channel.DisposeAsync().ConfigureAwait(false);
+                    await state.Channel.DisposeAsync();
                     state.Channel = null;
                 }
             }
@@ -96,11 +96,11 @@ public sealed class ReusableConsumerChannelProvider(IRabbitMqConnectionManager c
     {
         if (!_channels.TryGetValue(consumerName, out var state))
         {
-            await channel.DisposeAsync().ConfigureAwait(false);
+            await channel.DisposeAsync();
             return;
         }
 
-        await state.Sync.WaitAsync().ConfigureAwait(false);
+        await state.Sync.WaitAsync();
         try
         {
             state.IsLeased = false;
@@ -113,7 +113,7 @@ public sealed class ReusableConsumerChannelProvider(IRabbitMqConnectionManager c
                 }
 
                 _channels.TryRemove(consumerName, out _);
-                await channel.DisposeAsync().ConfigureAwait(false);
+                await channel.DisposeAsync();
             }
         }
         finally
@@ -159,7 +159,7 @@ public sealed class ReusableConsumerChannelProvider(IRabbitMqConnectionManager c
                 return;
             }
 
-            await _owner.ReturnAsync(_consumerName, channel).ConfigureAwait(false);
+            await _owner.ReturnAsync(_consumerName, channel);
         }
     }
 }

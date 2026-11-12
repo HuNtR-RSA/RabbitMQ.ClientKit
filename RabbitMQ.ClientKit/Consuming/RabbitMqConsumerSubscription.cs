@@ -48,7 +48,7 @@ public sealed class RabbitMqConsumerSubscription : IAsyncDisposable
             return;
         }
 
-        await _session.StopAsync(cancellationToken).ConfigureAwait(false);
+        await _session.StopAsync(cancellationToken);
     }
 
     /// <inheritdoc />

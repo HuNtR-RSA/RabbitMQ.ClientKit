@@ -24,13 +24,13 @@ internal sealed class Amqp091ConsumerSession(
         {
             if (_channel.IsOpen && !string.IsNullOrWhiteSpace(_consumerTag))
             {
-                await _channel.BasicCancelAsync(_consumerTag, false, cancellationToken).ConfigureAwait(false);
+                await _channel.BasicCancelAsync(_consumerTag, false, cancellationToken);
             }
         }
         finally
         {
             _cancellationTokenSource.Dispose();
-            await _lease.DisposeAsync().ConfigureAwait(false);
+            await _lease.DisposeAsync();
         }
     }
 }

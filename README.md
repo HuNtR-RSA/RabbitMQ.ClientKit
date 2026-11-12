@@ -53,6 +53,12 @@ await client.PublishAsync
 
 await using var subscription = await client.SubscribeAsync<dynamic>
 (
+    async (message, cancellationToken) =>
+    {
+        Console.WriteLine(message.Payload);
+        await Task.CompletedTask;
+        return RabbitMqConsumeResult.Ack;
+    },
     new RabbitMqConsumerOptions
     {
         QueueName = "orders.created",
@@ -64,12 +70,6 @@ await using var subscription = await client.SubscribeAsync<dynamic>
                 Durable = true
             }
         }
-    },
-    async (message, cancellationToken) =>
-    {
-        Console.WriteLine(message.Payload);
-        await Task.CompletedTask;
-        return RabbitMqConsumeResult.Ack;
     }
 );
 ```
@@ -136,11 +136,6 @@ Consumers receive an `IRabbitMqDeliveryHandle` on `RabbitMqReceivedMessage<T>.De
 ```csharp
 await using var subscription = await client.SubscribeAsync<OrderMessage>
 (
-    new RabbitMqConsumerOptions
-    {
-        QueueName = "orders.input",
-        ConsumerName = "orders-processor"
-    },
     async (message, cancellationToken) =>
     {
         if (message.Delivery is not { } delivery)
@@ -156,6 +151,11 @@ await using var subscription = await client.SubscribeAsync<OrderMessage>
             cancellationToken);
 
         return RabbitMqConsumeResult.Handled;
+    },
+    new RabbitMqConsumerOptions
+    {
+        QueueName = "orders.input",
+        ConsumerName = "orders-processor"
     }
 );
 ```
@@ -188,6 +188,20 @@ One TCP connection speaks one protocol, so AMQP 1.0 subscriptions use a dedicate
 ```csharp
 await using var subscription = await client.SubscribeAsync<OrderMessage>
 (
+    async (message, cancellationToken) =>
+    {
+        if (message.Delivery is not { } delivery)
+        {
+            return RabbitMqConsumeResult.Ack;
+        }
+
+        await delivery.DelayRetryAsync(
+            TimeSpan.FromSeconds(30),
+            deliveryFailed: true,
+            cancellationToken);
+
+        return RabbitMqConsumeResult.Handled;
+    },
     new RabbitMqConsumerOptions
     {
         QueueName = "orders.work",
@@ -205,20 +219,6 @@ await using var subscription = await client.SubscribeAsync<OrderMessage>
                 }
             }
         }
-    },
-    async (message, cancellationToken) =>
-    {
-        if (message.Delivery is not { } delivery)
-        {
-            return RabbitMqConsumeResult.Ack;
-        }
-
-        await delivery.DelayRetryAsync(
-            TimeSpan.FromSeconds(30),
-            deliveryFailed: true,
-            cancellationToken);
-
-        return RabbitMqConsumeResult.Handled;
     }
 );
 ```
@@ -327,14 +327,6 @@ Example with explicit prefetch and dead-letter-friendly failure behavior:
 ```csharp
 await using var subscription = await client.SubscribeAsync<OrderCreated>
 (
-    new RabbitMqConsumerOptions
-    {
-        QueueName = "orders.primary",
-        ConsumerName = "orders-worker",
-        PrefetchCount = 32,
-        RequeueOnFailure = false,
-        Topology = topology
-    },
     async (message, cancellationToken) =>
     {
         if (!await TryProcessAsync(message.Payload, cancellationToken))
@@ -343,6 +335,14 @@ await using var subscription = await client.SubscribeAsync<OrderCreated>
         }
 
         return RabbitMqConsumeResult.Ack;
+    },
+    new RabbitMqConsumerOptions
+    {
+        QueueName = "orders.primary",
+        ConsumerName = "orders-worker",
+        PrefetchCount = 32,
+        RequeueOnFailure = false,
+        Topology = topology
     }
 );
 ```

@@ -1,3 +1,4 @@
+using System.Text;
 using RabbitMQ.AMQP.Client;
 using RabbitMQ.AMQP.Client.Impl;
 using RabbitMQ.Client;
@@ -29,14 +30,14 @@ public sealed class RabbitMqConsumer
     /// Subscribes to a queue and dispatches deliveries to the provided handler.
     /// </summary>
     /// <typeparam name="T">The payload type.</typeparam>
-    /// <param name="options">The consumer options describing queue behavior and topology.</param>
     /// <param name="handler">The async message handler.</param>
+    /// <param name="options">The consumer options describing queue behavior and topology.</param>
     /// <param name="cancellationToken">The cancellation token for the subscribe operation.</param>
     /// <returns>The active consumer subscription.</returns>
     public Task<RabbitMqConsumerSubscription> SubscribeAsync<T>
     (
-        RabbitMqConsumerOptions options,
         Func<RabbitMqReceivedMessage<T>, CancellationToken, Task<RabbitMqConsumeResult>> handler,
+        RabbitMqConsumerOptions options,
         CancellationToken cancellationToken = default
     )
     {
@@ -57,7 +58,8 @@ public sealed class RabbitMqConsumer
         CancellationToken cancellationToken
     )
     {
-        var lease = await _consumerChannelProvider.RentAsync(options.ResolveConsumerName(), cancellationToken).ConfigureAwait(false);
+        var lease = await _consumerChannelProvider.RentAsync(options.ResolveConsumerName(), cancellationToken);
+        var subscriptionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         try
         {
@@ -65,17 +67,17 @@ public sealed class RabbitMqConsumer
 
             if (options.Topology is not null)
             {
-                await RabbitMqTopologyInitializer.InitializeAsync(channel, options.Topology, cancellationToken).ConfigureAwait(false);
+                await RabbitMqTopologyInitializer.InitializeAsync(channel, options.Topology, cancellationToken);
             }
 
             if (options.PrefetchCount > 0)
             {
-                await channel.BasicQosAsync(0, options.PrefetchCount, options.GlobalPrefetch, cancellationToken).ConfigureAwait(false);
+                await channel.BasicQosAsync(0, options.PrefetchCount, options.GlobalPrefetch, cancellationToken);
             }
 
-            var subscriptionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var subscriptionToken = subscriptionCts.Token;
             var consumer = new AsyncEventingBasicConsumer(channel);
-            consumer.ReceivedAsync += (_, args) => HandleMessageAsync(channel, args, options, handler, subscriptionCts.Token);
+            consumer.ReceivedAsync += (_, args) => HandleMessageAsync(channel, args, options, handler, subscriptionToken);
 
             var consumerTag = await channel.BasicConsumeAsync
             (
@@ -87,13 +89,14 @@ public sealed class RabbitMqConsumer
                     options.Arguments,
                     consumer,
                     cancellationToken
-            ).ConfigureAwait(false);
+            );
 
             return new RabbitMqConsumerSubscription(lease, channel, consumerTag, subscriptionCts);
         }
         catch
         {
-            await lease.DisposeAsync().ConfigureAwait(false);
+            subscriptionCts.Dispose();
+            await lease.DisposeAsync();
             throw;
         }
     }
@@ -113,17 +116,18 @@ public sealed class RabbitMqConsumer
 
         if (options.Topology is not null)
         {
-            await DeclareTopologyAsync(options, cancellationToken).ConfigureAwait(false);
+            await DeclareTopologyAsync(options, cancellationToken);
         }
 
-        var connection = await _amqp10ConnectionManager.GetConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var connection = await _amqp10ConnectionManager.GetConnectionAsync(cancellationToken);
         var subscriptionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         try
         {
+            var subscriptionToken = subscriptionCts.Token;
             var builder = connection.ConsumerBuilder()
                 .Queue(options.QueueName)
-                .MessageHandler((context, message) => HandleAmqp10MessageAsync(context, message, options, handler, subscriptionCts.Token));
+                .MessageHandler((context, message) => HandleAmqp10MessageAsync(context, message, options, handler, subscriptionToken));
 
             if (options.PrefetchCount > 0)
             {
@@ -133,7 +137,7 @@ public sealed class RabbitMqConsumer
             builder = builder.SettleStrategy(
                 options.AutoAck ? ConsumerSettleStrategy.PreSettled : ConsumerSettleStrategy.ExplicitSettle);
 
-            var consumer = await builder.BuildAndStartAsync(cancellationToken).ConfigureAwait(false);
+            var consumer = await builder.BuildAndStartAsync(cancellationToken);
             return new RabbitMqConsumerSubscription(new Amqp10ConsumerSession(consumer, subscriptionCts));
         }
         catch
@@ -145,14 +149,14 @@ public sealed class RabbitMqConsumer
 
     private async Task DeclareTopologyAsync(RabbitMqConsumerOptions options, CancellationToken cancellationToken)
     {
-        var lease = await _consumerChannelProvider.RentAsync(options.ResolveConsumerName(), cancellationToken).ConfigureAwait(false);
+        var lease = await _consumerChannelProvider.RentAsync(options.ResolveConsumerName(), cancellationToken);
         try
         {
-            await RabbitMqTopologyInitializer.InitializeAsync(lease.Channel, options.Topology!, cancellationToken).ConfigureAwait(false);
+            await RabbitMqTopologyInitializer.InitializeAsync(lease.Channel, options.Topology!, cancellationToken);
         }
         finally
         {
-            await lease.DisposeAsync().ConfigureAwait(false);
+            await lease.DisposeAsync();
         }
     }
 
@@ -180,18 +184,18 @@ public sealed class RabbitMqConsumer
                 delivery
             );
 
-            var result = await handler(message, cancellationToken).ConfigureAwait(false);
+            var result = await handler(message, cancellationToken);
 
             if (!options.AutoAck && result.Disposition != RabbitMqConsumeDisposition.Handled && !(delivery?.IsSettled ?? false))
             {
-                await ApplyConsumeResultAsync(channel, args.DeliveryTag, result, cancellationToken).ConfigureAwait(false);
+                await ApplyConsumeResultAsync(channel, args.DeliveryTag, result, cancellationToken);
             }
         }
         catch
         {
             if (!options.AutoAck && !(delivery?.IsSettled ?? false) && channel.IsOpen)
             {
-                await channel.BasicNackAsync(args.DeliveryTag, false, options.RequeueOnFailure, CancellationToken.None).ConfigureAwait(false);
+                await channel.BasicNackAsync(args.DeliveryTag, false, options.RequeueOnFailure, CancellationToken.None);
             }
 
             throw;
@@ -222,11 +226,11 @@ public sealed class RabbitMqConsumer
                 delivery
             );
 
-            var result = await handler(received, cancellationToken).ConfigureAwait(false);
+            var result = await handler(received, cancellationToken);
 
             if (!options.AutoAck && result.Disposition != RabbitMqConsumeDisposition.Handled && !(delivery?.IsSettled ?? false))
             {
-                await ApplyAmqp10ConsumeResultAsync(delivery!, result, cancellationToken).ConfigureAwait(false);
+                await ApplyAmqp10ConsumeResultAsync(delivery!, result, cancellationToken);
             }
         }
         catch
@@ -258,13 +262,13 @@ public sealed class RabbitMqConsumer
         switch (result.Disposition)
         {
             case RabbitMqConsumeDisposition.Ack:
-                await channel.BasicAckAsync(deliveryTag, false, cancellationToken).ConfigureAwait(false);
+                await channel.BasicAckAsync(deliveryTag, false, cancellationToken);
                 break;
             case RabbitMqConsumeDisposition.Reject:
-                await channel.BasicRejectAsync(deliveryTag, false, cancellationToken).ConfigureAwait(false);
+                await channel.BasicRejectAsync(deliveryTag, false, cancellationToken);
                 break;
             case RabbitMqConsumeDisposition.Requeue:
-                await channel.BasicNackAsync(deliveryTag, false, true, cancellationToken).ConfigureAwait(false);
+                await channel.BasicNackAsync(deliveryTag, false, true, cancellationToken);
                 break;
             case RabbitMqConsumeDisposition.Handled:
                 break;
@@ -348,11 +352,11 @@ public sealed class RabbitMqConsumer
         }
         catch (InvalidCastException)
         {
-            return System.Text.Encoding.UTF8.GetBytes(message.BodyAsString());
+            return Encoding.UTF8.GetBytes(message.BodyAsString());
         }
         catch (InvalidOperationException)
         {
-            return System.Text.Encoding.UTF8.GetBytes(message.BodyAsString());
+            return Encoding.UTF8.GetBytes(message.BodyAsString());
         }
     }
 
