@@ -35,8 +35,8 @@ public sealed class RabbitMqDynamicConsumer
     /// <param name="cancellationToken">The cancellation token for the load operation.</param>
     public async ValueTask<RabbitMqConsumer> GetConsumerAsync(CancellationToken cancellationToken = default)
     {
-        var registration = await GetRegistrationAsync(cancellationToken).ConfigureAwait(false);
-        var client = await _runtime.GetClientAsync(registration.ConnectionName, cancellationToken).ConfigureAwait(false);
+        var registration = await GetRegistrationAsync(cancellationToken);
+        var client = await _runtime.GetClientAsync(registration.ConnectionName, cancellationToken);
         return client.Consumer;
     }
 
@@ -46,8 +46,8 @@ public sealed class RabbitMqDynamicConsumer
     /// <param name="cancellationToken">The cancellation token for the load operation.</param>
     public async ValueTask<RabbitMqClient> GetClientAsync(CancellationToken cancellationToken = default)
     {
-        var registration = await GetRegistrationAsync(cancellationToken).ConfigureAwait(false);
-        return await _runtime.GetClientAsync(registration.ConnectionName, cancellationToken).ConfigureAwait(false);
+        var registration = await GetRegistrationAsync(cancellationToken);
+        return await _runtime.GetClientAsync(registration.ConnectionName, cancellationToken);
     }
 
     /// <summary>
@@ -62,8 +62,8 @@ public sealed class RabbitMqDynamicConsumer
         CancellationToken cancellationToken = default
     )
     {
-        var registration = await GetRegistrationAsync(cancellationToken).ConfigureAwait(false);
-        var consumer = await GetConsumerAsync(cancellationToken).ConfigureAwait(false);
-        return await consumer.SubscribeAsync(handler, registration.Options, cancellationToken).ConfigureAwait(false);
+        var registration = await GetRegistrationAsync(cancellationToken);
+        var consumer = await GetConsumerAsync(cancellationToken);
+        return await consumer.SubscribeAsync(handler, registration.Options, cancellationToken);
     }
 }

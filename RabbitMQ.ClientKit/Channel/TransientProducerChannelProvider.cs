@@ -18,7 +18,7 @@ public sealed class TransientProducerChannelProvider(IRabbitMqConnectionManager 
     )
     {
         var options = RabbitMqChannelOptionsFactory.CreateChannelOptions(publisherConfirmationsEnabled, confirmTimeout);
-        var channel = await _connectionManager.CreateChannelAsync(options, cancellationToken).ConfigureAwait(false);
+        var channel = await _connectionManager.CreateChannelAsync(options, cancellationToken);
         RabbitMqChannelOptionsFactory.ConfigureChannel(channel, publisherConfirmationsEnabled, confirmTimeout);
         
         return new AsyncDisposableChannelLease(channel);

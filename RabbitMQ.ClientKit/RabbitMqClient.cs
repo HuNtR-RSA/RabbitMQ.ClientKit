@@ -148,17 +148,17 @@ public sealed class RabbitMqClient : IAsyncDisposable
             return;
         }
 
-        await _producerChannelProvider.DisposeAsync().ConfigureAwait(false);
-        await _consumerChannelProvider.DisposeAsync().ConfigureAwait(false);
+        await _producerChannelProvider.DisposeAsync();
+        await _consumerChannelProvider.DisposeAsync();
 
         if (_connectionManager is not null)
         {
-            await _connectionManager.DisposeAsync().ConfigureAwait(false);
+            await _connectionManager.DisposeAsync();
         }
 
         if (_amqp10ConnectionManager is not null)
         {
-            await _amqp10ConnectionManager.DisposeAsync().ConfigureAwait(false);
+            await _amqp10ConnectionManager.DisposeAsync();
         }
     }
 }

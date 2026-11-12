@@ -99,7 +99,7 @@ public sealed class RabbitMqClientCache : IAsyncDisposable
 
         foreach (var client in _clients.Values)
         {
-            await client.DisposeAsync().ConfigureAwait(false);
+            await client.DisposeAsync();
         }
 
         _clients.Clear();

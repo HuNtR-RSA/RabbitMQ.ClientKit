@@ -19,7 +19,7 @@ internal sealed class Amqp10ConsumerSession(
         {
             if (_consumer.State is State.Open)
             {
-                await _consumer.CloseAsync().ConfigureAwait(false);
+                await _consumer.CloseAsync();
             }
         }
         finally

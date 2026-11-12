@@ -57,7 +57,7 @@ public sealed class PooledProducerChannelProvider : IRabbitMqProducerChannelProv
                 }
 
                 Interlocked.Decrement(ref _createdChannels);
-                await channel.DisposeAsync().ConfigureAwait(false);
+                await channel.DisposeAsync();
             }
 
             if (TryReserveChannelSlot())
@@ -65,7 +65,7 @@ public sealed class PooledProducerChannelProvider : IRabbitMqProducerChannelProv
                 try
                 {
                     var options = RabbitMqChannelOptionsFactory.CreateChannelOptions(publisherConfirmationsEnabled, confirmTimeout);
-                    var createdChannel = await _connectionManager.CreateChannelAsync(options, cancellationToken).ConfigureAwait(false);
+                    var createdChannel = await _connectionManager.CreateChannelAsync(options, cancellationToken);
                     RabbitMqChannelOptionsFactory.ConfigureChannel(createdChannel, publisherConfirmationsEnabled, confirmTimeout);
                     return new PooledProducerChannelLease(this, createdChannel, poolKey);
                 }
@@ -76,12 +76,12 @@ public sealed class PooledProducerChannelProvider : IRabbitMqProducerChannelProv
                 }
             }
 
-            if (await TryReclaimChannelSlotAsync(poolKey).ConfigureAwait(false))
+            if (await TryReclaimChannelSlotAsync(poolKey))
             {
                 continue;
             }
 
-            await _availabilitySignal.WaitAsync(cancellationToken).ConfigureAwait(false);
+            await _availabilitySignal.WaitAsync(cancellationToken);
             ThrowIfDisposed();
         }
     }
@@ -101,7 +101,7 @@ public sealed class PooledProducerChannelProvider : IRabbitMqProducerChannelProv
         {
             while (queue.TryDequeue(out var channel))
             {
-                await channel.DisposeAsync().ConfigureAwait(false);
+                await channel.DisposeAsync();
             }
         }
     }
@@ -111,7 +111,7 @@ public sealed class PooledProducerChannelProvider : IRabbitMqProducerChannelProv
         if (_disposed || !channel.IsOpen)
         {
             Interlocked.Decrement(ref _createdChannels);
-            await channel.DisposeAsync().ConfigureAwait(false);
+            await channel.DisposeAsync();
             return;
         }
 
@@ -149,7 +149,7 @@ public sealed class PooledProducerChannelProvider : IRabbitMqProducerChannelProv
             while (pair.Value.TryDequeue(out var channel))
             {
                 Interlocked.Decrement(ref _createdChannels);
-                await channel.DisposeAsync().ConfigureAwait(false);
+                await channel.DisposeAsync();
                 return true;
             }
         }
@@ -191,7 +191,7 @@ public sealed class PooledProducerChannelProvider : IRabbitMqProducerChannelProv
                 return;
             }
 
-            await _owner.ReturnAsync(channel, _poolKey).ConfigureAwait(false);
+            await _owner.ReturnAsync(channel, _poolKey);
         }
     }
 }

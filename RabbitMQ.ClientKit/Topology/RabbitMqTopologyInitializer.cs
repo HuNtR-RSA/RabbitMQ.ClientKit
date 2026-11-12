@@ -32,17 +32,17 @@ public sealed class RabbitMqTopologyInitializer
                 topology.Exchange.AutoDelete,
                 topology.Exchange.Arguments,
                 cancellationToken: cancellationToken
-            ).ConfigureAwait(false);
+            );
         }
 
         if (topology.Queue is not null)
         {
-            await DeclareQueueAsync(channel, topology.Queue, cancellationToken).ConfigureAwait(false);
+            await DeclareQueueAsync(channel, topology.Queue, cancellationToken);
         }
 
         foreach (var queue in topology.Queues)
         {
-            await DeclareQueueAsync(channel, queue, cancellationToken).ConfigureAwait(false);
+            await DeclareQueueAsync(channel, queue, cancellationToken);
         }
 
         foreach (var binding in topology.Bindings)
@@ -57,7 +57,7 @@ public sealed class RabbitMqTopologyInitializer
                 binding.RoutingKey,
                 binding.Arguments,
                 cancellationToken: cancellationToken
-            ).ConfigureAwait(false);
+            );
         }
     }
 
@@ -73,6 +73,6 @@ public sealed class RabbitMqTopologyInitializer
                 queue.AutoDelete,
                 queue.Arguments,
                 cancellationToken: cancellationToken
-        ).ConfigureAwait(false);
+        );
     }
 }

@@ -23,7 +23,7 @@ public sealed class RabbitMqConnectionManager(RabbitMqConnectionOptions options)
             return _connection;
         }
 
-        await _sync.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await _sync.WaitAsync(cancellationToken);
         
         try
         {
@@ -36,12 +36,12 @@ public sealed class RabbitMqConnectionManager(RabbitMqConnectionOptions options)
 
             if (_connection is not null)
             {
-                await _connection.DisposeAsync().ConfigureAwait(false);
+                await _connection.DisposeAsync();
                 _connection = null;
             }
 
             var factory = CreateFactory();
-            _connection = await factory.CreateConnectionAsync(_options.ClientProvidedName, cancellationToken).ConfigureAwait(false);
+            _connection = await factory.CreateConnectionAsync(_options.ClientProvidedName, cancellationToken);
             return _connection;
         }
         finally
@@ -57,8 +57,8 @@ public sealed class RabbitMqConnectionManager(RabbitMqConnectionOptions options)
         CancellationToken cancellationToken = default
     )
     {
-        var connection = await GetConnectionAsync(cancellationToken).ConfigureAwait(false);
-        return await connection.CreateChannelAsync(options, cancellationToken).ConfigureAwait(false);
+        var connection = await GetConnectionAsync(cancellationToken);
+        return await connection.CreateChannelAsync(options, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -70,12 +70,12 @@ public sealed class RabbitMqConnectionManager(RabbitMqConnectionOptions options)
         }
 
         _disposed = true;
-        await _sync.WaitAsync().ConfigureAwait(false);
+        await _sync.WaitAsync();
         try
         {
             if (_connection is not null)
             {
-                await _connection.DisposeAsync().ConfigureAwait(false);
+                await _connection.DisposeAsync();
                 _connection = null;
             }
         }

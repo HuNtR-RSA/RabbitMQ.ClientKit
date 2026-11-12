@@ -31,7 +31,7 @@ internal sealed class RabbitMqDynamicRuntime
 
     public async ValueTask<RabbitMqDynamicConfigurationSnapshot> GetSnapshotAsync(CancellationToken cancellationToken = default)
     {
-        await EnsureSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        await EnsureSnapshotAsync(cancellationToken);
         return _snapshot!;
     }
 
@@ -39,11 +39,11 @@ internal sealed class RabbitMqDynamicRuntime
     {
         ThrowIfDisposed();
 
-        var snapshot = await _configurationSource.GetConfigurationAsync(cancellationToken).ConfigureAwait(false);
+        var snapshot = await _configurationSource.GetConfigurationAsync(cancellationToken);
         ValidateSnapshot(snapshot);
 
         List<RabbitMqClient> staleClients;
-        await _sync.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await _sync.WaitAsync(cancellationToken);
         try
         {
             ThrowIfDisposed();
@@ -56,17 +56,17 @@ internal sealed class RabbitMqDynamicRuntime
             _sync.Release();
         }
 
-        await DisposeClientsAsync(staleClients).ConfigureAwait(false);
+        await DisposeClientsAsync(staleClients);
     }
 
     public async ValueTask<RabbitMqClient> GetClientAsync(string? connectionName = null, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        await EnsureSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        await EnsureSnapshotAsync(cancellationToken);
 
         RabbitMqClient? staleClient = null;
         RabbitMqClient resolvedClient;
-        await _sync.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await _sync.WaitAsync(cancellationToken);
         try
         {
             ThrowIfDisposed();
@@ -98,7 +98,7 @@ internal sealed class RabbitMqDynamicRuntime
 
         if (staleClient is not null)
         {
-            await staleClient.DisposeAsync().ConfigureAwait(false);
+            await staleClient.DisposeAsync();
         }
 
         return resolvedClient;
@@ -108,7 +108,7 @@ internal sealed class RabbitMqDynamicRuntime
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        var snapshot = await GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        var snapshot = await GetSnapshotAsync(cancellationToken);
         
         return snapshot.Producers.TryGetValue(name, out var registration)
             ? registration
@@ -119,7 +119,7 @@ internal sealed class RabbitMqDynamicRuntime
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        var snapshot = await GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        var snapshot = await GetSnapshotAsync(cancellationToken);
         return snapshot.Consumers.TryGetValue(name, out var registration)
             ? registration
             : throw new KeyNotFoundException($"No dynamic RabbitMQ consumer named '{name}' is configured.");
@@ -133,7 +133,7 @@ internal sealed class RabbitMqDynamicRuntime
         }
 
         List<RabbitMqClient> clients;
-        await _sync.WaitAsync().ConfigureAwait(false);
+        await _sync.WaitAsync();
         try
         {
             if (_disposed)
@@ -152,7 +152,7 @@ internal sealed class RabbitMqDynamicRuntime
             _sync.Dispose();
         }
 
-        await DisposeClientsAsync(clients).ConfigureAwait(false);
+        await DisposeClientsAsync(clients);
     }
 
     private async Task EnsureSnapshotAsync(CancellationToken cancellationToken)
@@ -162,7 +162,7 @@ internal sealed class RabbitMqDynamicRuntime
             return;
         }
 
-        await RefreshAsync(cancellationToken).ConfigureAwait(false);
+        await RefreshAsync(cancellationToken);
     }
 
     private List<RabbitMqClient> RemoveStaleClients(RabbitMqDynamicConfigurationSnapshot snapshot)
@@ -225,7 +225,7 @@ internal sealed class RabbitMqDynamicRuntime
     {
         foreach (var client in clients)
         {
-            await client.DisposeAsync().ConfigureAwait(false);
+            await client.DisposeAsync();
         }
     }
 

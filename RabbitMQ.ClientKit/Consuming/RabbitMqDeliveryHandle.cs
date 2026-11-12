@@ -41,21 +41,21 @@ public sealed class RabbitMqDeliveryHandle
     /// <inheritdoc />
     public async Task AckAsync(CancellationToken cancellationToken = default)
     {
-        await _channel.BasicAckAsync(deliveryTag, false, cancellationToken).ConfigureAwait(false);
+        await _channel.BasicAckAsync(deliveryTag, false, cancellationToken);
         Interlocked.Exchange(ref _settled, 1);
     }
 
     /// <inheritdoc />
     public async Task RejectAsync(CancellationToken cancellationToken = default)
     {
-        await _channel.BasicRejectAsync(deliveryTag, false, cancellationToken).ConfigureAwait(false);
+        await _channel.BasicRejectAsync(deliveryTag, false, cancellationToken);
         Interlocked.Exchange(ref _settled, 1);
     }
 
     /// <inheritdoc />
     public async Task NackAsync(bool requeue = true, CancellationToken cancellationToken = default)
     {
-        await _channel.BasicNackAsync(deliveryTag, false, requeue, cancellationToken).ConfigureAwait(false);
+        await _channel.BasicNackAsync(deliveryTag, false, requeue, cancellationToken);
         Interlocked.Exchange(ref _settled, 1);
     }
 
@@ -85,7 +85,7 @@ public sealed class RabbitMqDeliveryHandle
 
     private async Task PublishCoreAsync(ReadOnlyMemory<byte> body, RabbitMqPublishOptions options, CancellationToken cancellationToken)
     {
-        await InitializeTopologyAsync(options, cancellationToken).ConfigureAwait(false);
+        await InitializeTopologyAsync(options, cancellationToken);
 
         var properties = options.Properties?.ToBasicProperties() ?? new BasicProperties { Persistent = true };
         if (string.IsNullOrWhiteSpace(properties.ContentType))
@@ -101,7 +101,7 @@ public sealed class RabbitMqDeliveryHandle
             properties,
             body,
             cancellationToken
-        ).ConfigureAwait(false);
+        );
     }
 
     private async Task ReplaceAndAckCoreAsync(
@@ -116,7 +116,7 @@ public sealed class RabbitMqDeliveryHandle
         try
         {
             replacementAttempted = true;
-            await InitializeTopologyAsync(options, cancellationToken).ConfigureAwait(false);
+            await InitializeTopologyAsync(options, cancellationToken);
             var properties = options.Properties?.ToBasicProperties() ?? new BasicProperties { Persistent = true };
             if (string.IsNullOrWhiteSpace(properties.ContentType) && !string.IsNullOrWhiteSpace(defaultContentType))
             {
@@ -131,10 +131,10 @@ public sealed class RabbitMqDeliveryHandle
                 properties,
                 body,
                 cancellationToken
-            ).ConfigureAwait(false);
+            );
 
             replacementConfirmed = true;
-            await AckAsync(cancellationToken).ConfigureAwait(false);
+            await AckAsync(cancellationToken);
         }
         catch
         {
@@ -142,7 +142,7 @@ public sealed class RabbitMqDeliveryHandle
             {
                 try
                 {
-                    await AckAsync(CancellationToken.None).ConfigureAwait(false);
+                    await AckAsync(CancellationToken.None);
                 }
                 catch
                 {
@@ -158,7 +158,7 @@ public sealed class RabbitMqDeliveryHandle
 
             if (replacementAttempted && _channel.IsOpen)
             {
-                await NackAsync(requeue: true, CancellationToken.None).ConfigureAwait(false);
+                await NackAsync(requeue: true, CancellationToken.None);
             }
 
             throw;

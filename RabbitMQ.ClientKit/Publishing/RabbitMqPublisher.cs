@@ -35,9 +35,9 @@ public sealed class RabbitMqPublisher
             options.PublisherConfirms,
             options.ConfirmTimeout,
             cancellationToken
-        ).ConfigureAwait(false);
+        );
         
-        await InitializeTopologyAsync(lease.Channel, options, cancellationToken).ConfigureAwait(false);
+        await InitializeTopologyAsync(lease.Channel, options, cancellationToken);
         
         await PublishCoreAsync
         (
@@ -46,7 +46,7 @@ public sealed class RabbitMqPublisher
             _serializer.ContentType,
             options,
             cancellationToken
-        ).ConfigureAwait(false);
+        );
     }
 
     /// <summary>
@@ -62,9 +62,9 @@ public sealed class RabbitMqPublisher
         await using var lease = await _producerChannelProvider.RentAsync(
             options.PublisherConfirms,
             options.ConfirmTimeout,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
         
-        await InitializeTopologyAsync(lease.Channel, options, cancellationToken).ConfigureAwait(false);
+        await InitializeTopologyAsync(lease.Channel, options, cancellationToken);
         
         await PublishCoreAsync
         (
@@ -73,7 +73,7 @@ public sealed class RabbitMqPublisher
             null,
             options,
             cancellationToken
-        ).ConfigureAwait(false);
+        );
     }
 
     /// <summary>
@@ -102,7 +102,7 @@ public sealed class RabbitMqPublisher
                 options.PublisherConfirms,
                 options.ConfirmTimeout,
                 cancellationToken
-            ).ConfigureAwait(false);
+            );
         }
         catch
         {
@@ -113,7 +113,7 @@ public sealed class RabbitMqPublisher
         {
             try
             {
-                await InitializeTopologyAsync(lease.Channel, options, cancellationToken).ConfigureAwait(false);
+                await InitializeTopologyAsync(lease.Channel, options, cancellationToken);
             }
             catch
             {
@@ -135,7 +135,7 @@ public sealed class RabbitMqPublisher
                         _serializer.ContentType,
                         options,
                         cancellationToken
-                    ).ConfigureAwait(false);
+                    );
                     confirmed++;
                 }
                 while (enumerator.MoveNext());
@@ -176,7 +176,7 @@ public sealed class RabbitMqPublisher
                 options.PublisherConfirms,
                 options.ConfirmTimeout,
                 cancellationToken
-            ).ConfigureAwait(false);
+            );
         }
         catch
         {
@@ -187,7 +187,7 @@ public sealed class RabbitMqPublisher
         {
             try
             {
-                await InitializeTopologyAsync(lease.Channel, options, cancellationToken).ConfigureAwait(false);
+                await InitializeTopologyAsync(lease.Channel, options, cancellationToken);
             }
             catch
             {
@@ -208,7 +208,7 @@ public sealed class RabbitMqPublisher
                         null,
                         options,
                         cancellationToken
-                    ).ConfigureAwait(false);
+                    );
                     confirmed++;
                 }
                 while (enumerator.MoveNext());
@@ -236,16 +236,16 @@ public sealed class RabbitMqPublisher
             publisherConfirmationsEnabled: false,
             confirmTimeout: null,
             cancellationToken
-        ).ConfigureAwait(false);
+        );
 
-        await RabbitMqTopologyInitializer.InitializeAsync(lease.Channel, topology, cancellationToken).ConfigureAwait(false);
+        await RabbitMqTopologyInitializer.InitializeAsync(lease.Channel, topology, cancellationToken);
     }
 
     private async Task InitializeTopologyAsync(IChannel channel, RabbitMqPublishOptions options, CancellationToken cancellationToken)
     {
         if (options.Topology is not null)
         {
-            await RabbitMqTopologyInitializer.InitializeAsync(channel, options.Topology, cancellationToken).ConfigureAwait(false);
+            await RabbitMqTopologyInitializer.InitializeAsync(channel, options.Topology, cancellationToken);
         }
     }
 
@@ -273,7 +273,7 @@ public sealed class RabbitMqPublisher
             properties,
             body,
             cancellationToken
-        ).ConfigureAwait(false);
+        );
     }
 
     private static void ValidateOptions(RabbitMqPublishOptions options)
