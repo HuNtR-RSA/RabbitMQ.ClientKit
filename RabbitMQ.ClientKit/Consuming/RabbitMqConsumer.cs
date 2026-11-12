@@ -59,6 +59,7 @@ public sealed class RabbitMqConsumer
     )
     {
         var lease = await _consumerChannelProvider.RentAsync(options.ResolveConsumerName(), cancellationToken).ConfigureAwait(false);
+        var subscriptionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         try
         {
@@ -74,9 +75,9 @@ public sealed class RabbitMqConsumer
                 await channel.BasicQosAsync(0, options.PrefetchCount, options.GlobalPrefetch, cancellationToken).ConfigureAwait(false);
             }
 
-            var subscriptionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var subscriptionToken = subscriptionCts.Token;
             var consumer = new AsyncEventingBasicConsumer(channel);
-            consumer.ReceivedAsync += (_, args) => HandleMessageAsync(channel, args, options, handler, subscriptionCts.Token);
+            consumer.ReceivedAsync += (_, args) => HandleMessageAsync(channel, args, options, handler, subscriptionToken);
 
             var consumerTag = await channel.BasicConsumeAsync
             (
@@ -94,6 +95,7 @@ public sealed class RabbitMqConsumer
         }
         catch
         {
+            subscriptionCts.Dispose();
             await lease.DisposeAsync().ConfigureAwait(false);
             throw;
         }
@@ -122,9 +124,10 @@ public sealed class RabbitMqConsumer
 
         try
         {
+            var subscriptionToken = subscriptionCts.Token;
             var builder = connection.ConsumerBuilder()
                 .Queue(options.QueueName)
-                .MessageHandler((context, message) => HandleAmqp10MessageAsync(context, message, options, handler, subscriptionCts.Token));
+                .MessageHandler((context, message) => HandleAmqp10MessageAsync(context, message, options, handler, subscriptionToken));
 
             if (options.PrefetchCount > 0)
             {
